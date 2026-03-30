@@ -1,0 +1,30 @@
+{
+  "criteria": [
+    {
+      "id": "q_working",
+      "name": "1. Proje çalışıyor mu / istenen temel özellikleri yerine getiriyor mu?",
+      "type": "boolean"
+    },
+    {
+      "id": "q_clean_code",
+      "name": "2. Kod kalitesi ve yapısı (1-10)",
+      "type": "scale",
+      "min": 1,
+      "max": 10
+    },
+    {
+      "id": "q_ux",
+      "name": "3. Kullanıcı deneyimi, kullanılabilirlik ve arayüz (1-10)",
+      "type": "scale",
+      "min": 1,
+      "max": 10
+    },
+    {
+      "id": "q_innovative",
+      "name": "4. Çözümün yaratıcılığı veya yenilikçi tarafı (1-10)",
+      "type": "scale",
+      "min": 1,
+      "max": 10
+    }
+  ]
+}
