@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ title | default("Hoş geldiniz") }}</title>
+</head>
+<body style="font-family: system-ui, sans-serif; line-height: 1.5;">
+  <p>Merhaba {{ name }},</p>
+  {% if message %}<p>{{ message }}</p>{% endif %}
+</body>
+</html>
