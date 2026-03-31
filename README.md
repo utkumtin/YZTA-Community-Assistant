@@ -1,36 +1,116 @@
 # Slack Community Agent
 
-## Paketler (`packages/`)
+Slack topluluklarında **challenge tabanlı öğrenme süreçlerini** otomatize eden bot servisi. Takım oluşturma, proje atama, teslim alma ve jüri değerlendirmesinden oluşan tam yaşam döngüsünü yönetir.
 
-| Paket | Tanım |
-|--------|--------|
-| **settings** | Ortam değişkenleri ve uygulama yapılandırması (`Settings`, PostgreSQL, Slack, monitör aralıkları, challenge limitleri, SMTP). |
-| **database** | Async SQLAlchemy ile PostgreSQL: modeller (challenge, kullanıcı, Slack ile ilgili tablolar), repository katmanı, oturum yönetimi. |
-| **slack** | Slack Bolt uygulaması, Socket Mode bağlantısı, Web API sarmalayıcıları; blok/layout yardımcıları; konuşma, mesaj, dosya, kullanıcı vb. komut modülleri. |
-| **logger** | Log yapılandırması, formatlayıcılar ve filtreler (servis logları için). |
-| **smtp** | İsteğe bağlı e-posta gönderimi (şablonlar, şema). |
+---
 
-## Servisler (`services/`)
+## Dokümantasyon
 
-| Servis | Tanım |
-|--------|--------|
-| **challenge_service** | Slack üzerinden challenge yaşam döngüsünü yürüten süreç: slash komutları ve etkileşimler, arka planda kategori kuyrukları, kanal kayıt defteri, zamanlayıcı monitörler (challenge, son tarih, değerlendirme), başlangıç/kapanış bildirimleri. |
+| # | Döküman | Açıklama |
+|---|---------|----------|
+| 1 | [Migration Rehberi](docs/migration.md) | Veritabanı migration sistemi — kurulum, upgrade, downgrade, autogenerate |
+| 2 | [Challenge Servis Rehberi](docs/challenge-service.md) | Slash komutları, iş akışları, monitörler, konfigürasyon |
+| 3 | [Paket Kullanım Rehberi](docs/packages.md) | Logger, Database, Slack, SMTP ve Settings paketleri |
 
-## Özellikler
+---
 
-- Slack Socket Mode ile gerçek zamanlı komut ve etkinlik işleme.
-- Challenge oluşturma, katılımcı ve takım akışı, kategori bazlı sıra (kuyruk) yönetimi.
-- Son tarih ve değerlendirme aşamaları için arka plan monitörleri.
-- Jüri ve değerlendirme ile ilgili komut ve etkinlik akışları.
-- PostgreSQL üzerinde challenge ve ilgili verilerin kalıcılığı; servis yeniden başlatıldığında kayıt defterinin veritabanından yeniden kurulması (resume modu).
-- İsteğe bağlı SMTP ile e-posta tarafı (yapılandırma `Settings` ile).
+## Proje Yapısı
 
-## Kapsam
+```
+Slack Community Agent
+├── packages/
+│   ├── settings.py          Pydantic ayarları (.env okur)
+│   ├── database/            PostgreSQL + SQLAlchemy async ORM + repository
+│   ├── slack/               Slack Bolt + SDK istemcisi + Block Kit yardımcıları
+│   ├── smtp/                E-posta bildirimleri (opsiyonel)
+│   └── logger/              Merkezi loglama
+│
+├── services/
+│   └── challenge_service/   Ana servis
+│       ├── handlers/        Slash komut ve event handler'ları
+│       ├── core/            Kuyruk, registry, monitörler
+│       └── config/          Değerlendirme kriterleri (criteria.json)
+│
+├── migrations/              Alembic migration dosyaları
+├── migrate.py               Migration CLI aracı
+└── .env.template            Ortam değişkeni şablonu
+```
 
-**Bu projede olanlar:** Slack topluluğu içinde challenge odaklı otomasyon, veritabanı ve Slack API entegrasyonu, tek ana servis olarak `challenge_service`.
+---
 
-**Bu projede olmayanlar:** Genel amaçlı HTTP/REST API sunucusu, Slack dışı web arayüzü, çoklu bağımsız mikroservis dağıtım modeli ve bu README kapsamı dışında kalan konular.
+## Hızlı Başlangıç
 
-## Sürüm notları
+### Gereksinimler
 
-Değişiklik geçmişi: [CHANGELOG.md](CHANGELOG.md).
+- Python 3.12+
+- PostgreSQL 14+
+- Slack uygulaması (Bot Token, App Token, User Token)
+
+### Kurulum
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requiremets.txt
+```
+
+### Ortam Değişkenleri
+
+```bash
+cp .env.template .env
+# .env dosyasını doldur
+```
+
+Zorunlu alanlar:
+
+```env
+# Veritabanı
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=your_password
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=slack_community_agent
+
+# Slack
+SLACK_BOT_TOKEN=xoxb-...
+SLACK_APP_TOKEN=xapp-...
+SLACK_USER_TOKEN=xoxp-...
+SLACK_ADMINS=U0123456789
+SLACK_COMMAND_CHANNELS=C0123456789
+```
+
+### Veritabanını Kur
+
+```bash
+python migrate.py upgrade
+```
+
+Detaylar için → [Migration Rehberi](docs/migration.md)
+
+### Servisi Başlat
+
+```bash
+# Normal başlatma — kaldığı yerden devam eder
+python -m services.challenge_service
+
+# Temiz başlatma — tüm challenge verisi sıfırlanır
+python -m services.challenge_service --fresh
+```
+
+---
+
+## Teknoloji Yığını
+
+| Katman | Teknoloji |
+|--------|-----------|
+| Bot framework | `slack_bolt` — Socket Mode |
+| Veritabanı | PostgreSQL + `SQLAlchemy` 2.x async |
+| Migration | `Alembic` |
+| Konfigürasyon | `pydantic-settings` |
+| E-posta | SMTP + Jinja2 (opsiyonel) |
+
+---
+
+## Değişiklik Geçmişi
+
+[CHANGELOG.md](CHANGELOG.md)
