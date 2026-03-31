@@ -94,7 +94,7 @@ class EvaluationMonitor:
                         
                         if challenge.evaluation_channel_id:
                             # Jüri üyelerini etiketleyebiliriz
-                            jury_mentions = " ".join([f"<@{jm.meta.get('slack_id')}>" for jm in challenge.challenge_jury_members if jm.meta and jm.meta.get("slack_id")])
+                            jury_mentions = " ".join([f"<@{jm.slack_id}>" for jm in challenge.challenge_jury_members if jm.slack_id])
                             
                             slack_helper.send_announcement(
                                 channel_id=challenge.evaluation_channel_id,

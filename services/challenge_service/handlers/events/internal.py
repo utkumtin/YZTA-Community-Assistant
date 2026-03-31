@@ -338,7 +338,7 @@ async def _assign_jury_to_challenge(
                 jm = ChallengeJuryMember(
                     challenge_id=challenge.id,
                     user_id=str(user.id) if user else None,
-                    meta={"slack_id": slack_id},
+                    slack_id=slack_id,
                 )
                 session.add(jm)
 

@@ -83,7 +83,7 @@ def handle_evaluate(client, body: dict) -> None:
 
     # Jüri üyesi mi? Zaten değerlendirdi mi?
     jury_member = next(
-        (jm for jm in challenge.challenge_jury_members if (jm.meta or {}).get("slack_id") == user_id),
+        (jm for jm in challenge.challenge_jury_members if jm.slack_id == user_id),
         None,
     )
     if not jury_member:
@@ -104,9 +104,9 @@ def handle_evaluate(client, body: dict) -> None:
     submission = (challenge.meta or {}).get("submission", {})
     ct = challenge.challenge_type
     team_members = [
-        (tm.meta or {}).get("slack_id")
+        tm.slack_id
         for tm in challenge.challenge_team_members
-        if (tm.meta or {}).get("slack_id")
+        if tm.slack_id
     ]
     team_mentions = " ".join(f"<@{uid}>" for uid in team_members) or "—"
     project_name = ct.name if ct else "Bilinmiyor"

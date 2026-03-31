@@ -227,9 +227,9 @@ class ChallengeServiceManager:
         rows = []
         for ch in result.unique().scalars():
             slack_ids = [
-                (tm.meta or {}).get("slack_id")
+                tm.slack_id
                 for tm in ch.challenge_team_members
-                if (tm.meta or {}).get("slack_id")
+                if tm.slack_id
             ]
             rows.append((ch.challenge_channel_id, slack_ids))
         return rows

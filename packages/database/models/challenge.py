@@ -33,7 +33,7 @@ class ChallengeType(Base, IDMixin, TimestampMixin):
     category: Mapped[ChallengeCategory] = mapped_column(SAEnum(ChallengeCategory), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    deadline_hours: Mapped[int] = mapped_column(Integer, nullable=True)
+    deadline_hours: Mapped[int | None] = mapped_column(Integer, nullable=True)
     checklist: Mapped[list | None] = mapped_column(JSONB, nullable=True, comment="Projenin kabul edilmesi için tamamlanması gereken adımlar (string listesi)")
     meta: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
@@ -69,6 +69,7 @@ class ChallengeTeamMember(Base, IDMixin, TimestampMixin):
 
     challenge_id: Mapped[str] = mapped_column(String(60), ForeignKey("challenges.id"), nullable=False, index=True)
     user_id: Mapped[str | None] = mapped_column(String(60), ForeignKey("slack_users.id"), nullable=True, index=True)
+    slack_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     meta: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     challenge: Mapped["Challenge"] = relationship("Challenge", back_populates="challenge_team_members")
@@ -80,6 +81,7 @@ class ChallengeJuryMember(Base, IDMixin, TimestampMixin):
 
     challenge_id: Mapped[str] = mapped_column(String(60), ForeignKey("challenges.id"), nullable=False, index=True)
     user_id: Mapped[str | None] = mapped_column(String(60), ForeignKey("slack_users.id"), nullable=True, index=True)
+    slack_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     meta: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     challenge: Mapped["Challenge"] = relationship("Challenge", back_populates="challenge_jury_members")

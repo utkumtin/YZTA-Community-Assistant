@@ -280,7 +280,7 @@ def _launch_challenge(client, category: ChallengeCategory, participants: list[st
                 member = ChallengeTeamMember(
                     challenge_id=challenge.id,
                     user_id=user_map.get(slack_id),
-                    meta={"slack_id": slack_id}
+                    slack_id=slack_id,
                 )
                 session.add(member)
             await session.flush()
