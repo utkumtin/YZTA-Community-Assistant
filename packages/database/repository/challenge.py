@@ -49,7 +49,7 @@ class ChallengeTypeRepository(BaseRepository[ChallengeType]):
             select(Challenge.challenge_type_id)
             .join(ChallengeTeamMember, ChallengeTeamMember.challenge_id == Challenge.id)
             .where(
-                ChallengeTeamMember.meta.op("->>")(  "slack_id").in_(participant_slack_ids),
+                ChallengeTeamMember.slack_id.in_(participant_slack_ids),
                 Challenge.status.in_(_DONE_STATUSES),
                 Challenge.challenge_type_id.is_not(None),
             )
@@ -122,7 +122,7 @@ class ChallengeRepository(BaseRepository[Challenge]):
             select(Challenge)
             .join(ChallengeTeamMember, ChallengeTeamMember.challenge_id == Challenge.id)
             .where(
-                ChallengeTeamMember.meta.op("->>")("slack_id") == slack_id
+                ChallengeTeamMember.slack_id == slack_id
             )
             .options(
                 joinedload(Challenge.challenge_type),

@@ -81,7 +81,7 @@ def handle_jury_evaluation_submission(ack: Ack, body: dict, view):
                 return False, False, 0.0, None
 
             # İlgili ChallengeJuryMember'ı bul
-            jury_member = next((jm for jm in challenge.challenge_jury_members if (jm.meta or {}).get("slack_id") == user_id), None)
+            jury_member = next((jm for jm in challenge.challenge_jury_members if jm.slack_id == user_id), None)
             if not jury_member:
                 return False, False, 0.0, None
 
@@ -126,12 +126,12 @@ def handle_jury_evaluation_submission(ack: Ack, body: dict, view):
                 submission = (challenge.meta or {}).get("submission", {})
                 announcement = {
                     "team": [
-                        sid for tm in challenge.challenge_team_members
-                        if (sid := (tm.meta or {}).get("slack_id"))
+                        tm.slack_id for tm in challenge.challenge_team_members
+                        if tm.slack_id
                     ],
                     "jury": [
-                        sid for jm in challenge.challenge_jury_members
-                        if (sid := (jm.meta or {}).get("slack_id"))
+                        jm.slack_id for jm in challenge.challenge_jury_members
+                        if jm.slack_id
                     ],
                     "project_name": challenge.challenge_type.name if challenge.challenge_type else None,
                     "github_url": submission.get("github_url", ""),

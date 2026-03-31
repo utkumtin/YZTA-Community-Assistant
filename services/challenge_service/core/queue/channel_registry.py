@@ -15,7 +15,7 @@ def _slack_ids_from_team(challenge: Challenge) -> list[str]:
     out: list[str] = []
     seen: set[str] = set()
     for tm in challenge.challenge_team_members:
-        sid = (tm.meta or {}).get("slack_id")
+        sid = tm.slack_id
         if isinstance(sid, str) and sid and sid not in seen:
             seen.add(sid)
             out.append(sid)
@@ -29,7 +29,7 @@ def _slack_ids_from_jury(challenge: Challenge) -> list[str]:
     out: list[str] = []
     seen: set[str] = set()
     for jm in challenge.challenge_jury_members:
-        sid = (jm.meta or {}).get("slack_id")
+        sid = jm.slack_id
         if isinstance(sid, str) and sid and sid not in seen:
             seen.add(sid)
             out.append(sid)
