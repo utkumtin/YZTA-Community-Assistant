@@ -5,6 +5,7 @@ from logging import Logger
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 from packages.settings import get_settings
 
@@ -21,7 +22,7 @@ class DatabaseManager:
     def _create_database_url(self) -> str:
         return f"postgresql+asyncpg://{_s.username}:{_s.password}@{_s.host}:{_s.port}/{_s.database}"
 
-    def initilaze(self) -> None:
+    def initialize(self) -> None:
         if self._engine is not None:
             self._logger.warning("DatabaseManager already initialized")
             return
@@ -48,16 +49,15 @@ class DatabaseManager:
     @asynccontextmanager
     async def session(self, read_only: bool = False) -> AsyncGenerator[AsyncSession, None]:
         if self._sessionmaker is None:
-            self._logger.error("DatabaseManager not initialized. Call initilaze() first.")
-            raise RuntimeError("DatabaseManager not initialized. Call initilaze() first.")
+            self._logger.error("DatabaseManager not initialized. Call initialize() first.")
+            raise RuntimeError("DatabaseManager not initialized. Call initialize() first.")
 
         async with self._sessionmaker() as session:
-            try: 
-                if read_only:
+            try:
+                async with session.begin():
+                    if read_only:
+                        await session.execute(text("SET TRANSACTION READ ONLY"))
                     yield session
-                else:
-                    async with session.begin():
-                        yield session
             except Exception as e:
                 self._logger.error(f"Error in session: {e}")
                 await session.rollback()

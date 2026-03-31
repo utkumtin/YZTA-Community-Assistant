@@ -38,6 +38,8 @@ class SystemSettings(BaseSettings):
     db_pool_size: int = Field(5, ge=1, description="SQLAlchemy pool boyutu")
     db_max_overflow: int = Field(10, ge=0, description="Pool overflow bağlantı sayısı")
     db_pool_timeout: int = Field(30, ge=1, description="Pool'dan bağlantı bekleme süresi (saniye)")
+    db_pool_pre_ping: bool = Field(True, description="Bağlantı kullanılmadan önce canlılık kontrolü")
+    db_pool_recycle: int = Field(3600, ge=60, description="Bağlantıların yenileneceği süre (saniye)")
 
     model_config = SettingsConfigDict(
         env_file=".env",

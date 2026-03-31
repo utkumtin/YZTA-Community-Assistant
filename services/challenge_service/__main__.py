@@ -33,7 +33,7 @@ from services.challenge_service.manager import StartupMode, service_manager
 
 async def _startup(mode: StartupMode) -> None:
     """DB + service_manager'ı başlatır."""
-    db.initilaze()
+    db.initialize()
     _logger.info("[Challenge Service] DB initialized")
 
     from packages.settings import get_settings as _gs
