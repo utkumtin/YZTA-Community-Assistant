@@ -1,0 +1,191 @@
+"""Event Service — Slack bildirim yardimcilari."""
+from __future__ import annotations
+
+from packages.settings import get_settings
+from packages.slack.client import slack_client
+from packages.slack.blocks.builder import MessageBuilder, BlockBuilder
+from packages.database.models.event import Event, LocationType
+from ..utils.calendar import build_google_calendar_url
+from ..logger import _logger
+
+
+def _location_display(event: Event) -> str:
+    """Lokasyon gosterimi: Slack kanali ise <#C123>, degilse tip adi."""
+    if event.location_type == LocationType.SLACK_CHANNEL.value and event.channel_id:
+        return f"<#{event.channel_id}>"
+    return {
+        "zoom": "Zoom", "youtube": "YouTube", "google_meet": "Google Meet",
+        "discord": "Discord", "other": "Diger",
+    }.get(event.location_type, event.location_type)
+
+
+def _calendar_url(event: Event) -> str:
+    location = event.link or (_location_display(event))
+    return build_google_calendar_url(
+        title=event.name,
+        event_date=event.date,
+        event_time=event.time,
+        duration_minutes=event.duration_minutes,
+        description=event.description,
+        location=location,
+    )
+
+
+def get_announcement_channels(event: Event) -> list[str]:
+    """Duyuru kanallarini belirler: event_channel + (farkli ise) channel_id."""
+    s = get_settings()
+    channels = [s.event_channel]
+    if (event.location_type == LocationType.SLACK_CHANNEL.value
+            and event.channel_id
+            and event.channel_id != s.event_channel):
+        channels.append(event.channel_id)
+    return channels
+
+
+def post_announcement(event: Event, interest_count: int = 0) -> None:
+    """Onay sonrasi ilk duyuru mesajini gonderir."""
+    cal_url = _calendar_url(event)
+    loc = _location_display(event)
+
+    builder = MessageBuilder()
+    builder.add_header("Yeni Etkinlik Duyurusu")
+
+    lines = [
+        f"*{event.name}*",
+        "",
+        f"*Konu:* {event.topic}",
+        f"*Aciklama:* {event.description}",
+        "",
+        f"*Tarih:* {event.date.strftime('%d %B %Y')}",
+        f"*Saat:* {event.time.strftime('%H:%M')}",
+        f"*Sure:* {event.duration_minutes} dakika",
+        f"*Lokasyon:* {loc}",
+    ]
+    if event.link:
+        lines.append(f"*Link:* <{event.link}>")
+    lines.append(f"*Duzenleyen:* <@{event.creator_slack_id}>")
+    builder.add_text("\n".join(lines))
+
+    builder.add_divider()
+    builder.add_button("Katilacagim", "event_interest_btn", value=event.id, style="primary")
+    builder.add_button("Google Takvime Ekle", "event_calendar_btn", value=event.id, url=cal_url)
+
+    if interest_count > 0:
+        builder.add_context([f"_{interest_count} kisi ilgi gosterdi_"])
+
+    blocks = builder.build()
+    text = f"Yeni Etkinlik: {event.name}"
+
+    for ch in get_announcement_channels(event):
+        try:
+            slack_client.bot_client.chat_postMessage(channel=ch, text=text, blocks=blocks)
+        except Exception as e:
+            _logger.error("[EVT-NOTIFY] Duyuru gonderilemedi channel=%s: %s", ch, e)
+
+
+def post_cancellation(event: Event, cancelled_by_slack_id: str) -> None:
+    """Iptal duyurusu gonderir."""
+    builder = MessageBuilder()
+    builder.add_header("Etkinlik Iptal Edildi")
+    builder.add_text(
+        f"*{event.name}*\n\n"
+        f"*Tarih:* {event.date.strftime('%d %B %Y')} · *Saat:* {event.time.strftime('%H:%M')}\n"
+        f"*Duzenleyen:* <@{event.creator_slack_id}>\n"
+        f"*Iptal Eden:* <@{cancelled_by_slack_id}>\n\n"
+        "Bu etkinlik iptal edilmistir."
+    )
+    builder.add_context([f"_{event.id}_"])
+
+    blocks = builder.build()
+    for ch in get_announcement_channels(event):
+        try:
+            slack_client.bot_client.chat_postMessage(
+                channel=ch, text=f"Etkinlik Iptal: {event.name}", blocks=blocks,
+            )
+        except Exception as e:
+            _logger.error("[EVT-NOTIFY] Iptal duyurusu gonderilemedi channel=%s: %s", ch, e)
+
+
+def post_update_announcement(event: Event) -> None:
+    """Guncelleme duyurusu gonderir."""
+    cal_url = _calendar_url(event)
+    loc = _location_display(event)
+
+    builder = MessageBuilder()
+    builder.add_header("Etkinlik Guncellendi")
+
+    lines = [
+        f"*{event.name}*",
+        "",
+        f"*Tarih:* {event.date.strftime('%d %B %Y')}",
+        f"*Saat:* {event.time.strftime('%H:%M')}",
+        f"*Sure:* {event.duration_minutes} dakika",
+        f"*Lokasyon:* {loc}",
+    ]
+    if event.link:
+        lines.append(f"*Link:* <{event.link}>")
+    lines.append(f"*Duzenleyen:* <@{event.creator_slack_id}>")
+    builder.add_text("\n".join(lines))
+
+    builder.add_divider()
+    builder.add_button("Katilacagim", "event_interest_btn", value=event.id, style="primary")
+    builder.add_button("Google Takvime Ekle", "event_calendar_btn", value=event.id, url=cal_url)
+
+    blocks = builder.build()
+    for ch in get_announcement_channels(event):
+        try:
+            slack_client.bot_client.chat_postMessage(
+                channel=ch, text=f"Etkinlik Guncellendi: {event.name}", blocks=blocks,
+            )
+        except Exception as e:
+            _logger.error("[EVT-NOTIFY] Guncelleme duyurusu gonderilemedi channel=%s: %s", ch, e)
+
+
+def send_dm(slack_id: str, text: str, blocks: list | None = None) -> None:
+    """Kullaniciya DM gonderir."""
+    try:
+        slack_client.bot_client.chat_postMessage(channel=slack_id, text=text, blocks=blocks)
+    except Exception as e:
+        _logger.error("[EVT-NOTIFY] DM gonderilemedi user=%s: %s", slack_id, e)
+
+
+def post_admin_request(event: Event) -> None:
+    """Admin kanalina onay/red butonlu talep mesaji gonderir."""
+    s = get_settings()
+    loc = _location_display(event)
+
+    builder = MessageBuilder()
+    builder.add_header("Yeni Etkinlik Talebi")
+
+    lines = [
+        f"*{event.name}*",
+        "",
+        f"*Konu:* {event.topic}",
+        f"*Aciklama:* {event.description}",
+        "",
+        f"*Tarih:* {event.date.strftime('%d %B %Y')}",
+        f"*Saat:* {event.time.strftime('%H:%M')}",
+        f"*Sure:* {event.duration_minutes} dakika",
+        f"*Lokasyon:* {loc}",
+    ]
+    if event.link:
+        lines.append(f"*Link:* <{event.link}>")
+    lines.append(f"*Talep Eden:* <@{event.creator_slack_id}>")
+    if event.yzta_request:
+        lines.append(f"*YZTA'dan Beklenen:* {event.yzta_request}")
+    builder.add_text("\n".join(lines))
+
+    builder.add_divider()
+    builder.add_button("Onayla", "event_approve_btn", value=event.id, style="primary")
+    builder.add_button("Reddet", "event_reject_btn", value=event.id, style="danger")
+    builder.add_context([f"_{event.id} · Gonderim: {event.created_at.strftime('%d %B %Y %H:%M')}_"])
+
+    blocks = builder.build()
+    try:
+        slack_client.bot_client.chat_postMessage(
+            channel=s.slack_admin_channel,
+            text=f"Yeni Etkinlik Talebi: {event.name}",
+            blocks=blocks,
+        )
+    except Exception as e:
+        _logger.error("[EVT-NOTIFY] Admin talebi gonderilemedi: %s", e)
