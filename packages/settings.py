@@ -29,6 +29,11 @@ class SystemSettings(BaseSettings):
     slack_report_channel: Optional[str] = Field(None, description="Slack Report Channel ID")
     slack_command_channels: list[str] = Field(..., description="Slack Command Channel ID listesi")
 
+    # Event Service Ayarlari
+    event_channel: str = Field(..., description="Serbest Kursu kanal ID'si (C...)")
+    event_reminder_enabled: bool = Field(True, description="Hatirlatma sistemi acik/kapali")
+    event_approval_timeout_hours: int = Field(72, ge=1, description="Admin onay suresi (saat)")
+
     # Database Ayarları
     username: str = Field(..., description="Veritabanı kullanıcı adı")
     password: str = Field(..., description="Veritabanı şifresi")
