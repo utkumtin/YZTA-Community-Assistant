@@ -222,6 +222,21 @@ def handle_update_modal(ack: Ack, body: dict, client, view):
 
     post_update_announcement(evt)
 
+    # Ilgi gosterenlere guncelleme e-postasi
+    async def _notify_interested():
+        async with db.session(read_only=True) as session:
+            interest_repo = EventInterestRepository(session)
+            interests = await interest_repo.list_by_event(event_id)
+            return [i.slack_id for i in interests]
+
+    try:
+        interested_ids = _run_async(_notify_interested())
+        from ...utils.email import send_update_email
+        for sid in interested_ids:
+            send_update_email(sid, evt)
+    except Exception as e:
+        _logger.warning("[EVT] Update email notifications failed: %s", e)
+
     _logger.info("[EVT] Event updated: %s by %s diff=%s", event_id, user_id, list(diff.keys()))
 
 

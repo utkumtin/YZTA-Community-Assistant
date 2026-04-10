@@ -486,6 +486,21 @@ def _handle_cancel(client, user_id: str, channel_id: str, event_id: str | None) 
             f"Etkinliginiz admin tarafindan iptal edildi.\n*{evt.name}*\n_{evt.id}_"
         )
 
+    # Ilgi gosterenlere iptal e-postasi
+    async def _notify_interested():
+        async with db.session(read_only=True) as session:
+            interest_repo = EventInterestRepository(session)
+            interests = await interest_repo.list_by_event(event_id)
+            return [i.slack_id for i in interests]
+
+    try:
+        interested_ids = _run_async(_notify_interested())
+        from ...utils.email import send_cancellation_email
+        for sid in interested_ids:
+            send_cancellation_email(sid, evt)
+    except Exception as e:
+        _logger.warning("[CMD] Cancel email notifications failed: %s", e)
+
     _logger.info("[CMD] Event cancelled: %s by %s", event_id, user_id)
 
 
