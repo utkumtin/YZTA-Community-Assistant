@@ -11,12 +11,14 @@ from ..logger import _logger
 
 def _location_display(event: Event) -> str:
     """Lokasyon gosterimi: Slack kanali ise <#C123>, degilse tip adi."""
-    if event.location_type == LocationType.SLACK_CHANNEL.value and event.channel_id:
+    loc = event.location_type
+    loc_val = loc.value if isinstance(loc, LocationType) else loc
+    if loc_val == LocationType.SLACK_CHANNEL.value and event.channel_id:
         return f"<#{event.channel_id}>"
     return {
-        "zoom": "Zoom", "youtube": "YouTube", "google_meet": "Google Meet",
-        "discord": "Discord", "other": "Diger",
-    }.get(event.location_type, event.location_type)
+        "slack_channel": "Slack Kanali", "zoom": "Zoom", "youtube": "YouTube",
+        "google_meet": "Google Meet", "discord": "Discord", "other": "Diger",
+    }.get(loc_val, loc_val)
 
 
 def _calendar_url(event: Event) -> str:
@@ -35,7 +37,8 @@ def get_announcement_channels(event: Event) -> list[str]:
     """Duyuru kanallarini belirler: event_channel + (farkli ise) channel_id."""
     s = get_settings()
     channels = [s.event_channel]
-    if (event.location_type == LocationType.SLACK_CHANNEL.value
+    loc_val = event.location_type.value if isinstance(event.location_type, LocationType) else event.location_type
+    if (loc_val == LocationType.SLACK_CHANNEL.value
             and event.channel_id
             and event.channel_id != s.event_channel):
         channels.append(event.channel_id)

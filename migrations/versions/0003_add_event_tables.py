@@ -25,7 +25,7 @@ def upgrade() -> None:
         sa.Column("date", sa.Date, nullable=False, index=True),
         sa.Column("time", sa.Time, nullable=False),
         sa.Column("duration_minutes", sa.Integer, nullable=False),
-        sa.Column("location_type", sa.String(32), nullable=False),
+        sa.Column("location_type", sa.Enum("slack_channel", "zoom", "youtube", "google_meet", "discord", "other", name="locationtype"), nullable=False),
         sa.Column("channel_id", sa.String(32), nullable=True),
         sa.Column("link", sa.String(500), nullable=True),
         sa.Column("yzta_request", sa.Text, nullable=True),
@@ -53,3 +53,4 @@ def downgrade() -> None:
     op.drop_table("event_interest")
     op.drop_table("events")
     op.execute("DROP TYPE IF EXISTS eventstatus")
+    op.execute("DROP TYPE IF EXISTS locationtype")

@@ -37,7 +37,7 @@ class Event(Base, IDMixin, TimestampMixin):
     date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     time: Mapped[time] = mapped_column(Time, nullable=False)
     duration_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
-    location_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    location_type: Mapped[LocationType] = mapped_column(SAEnum(LocationType), nullable=False)
     channel_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     link: Mapped[str | None] = mapped_column(String(500), nullable=True)
     yzta_request: Mapped[str | None] = mapped_column(Text, nullable=True)
