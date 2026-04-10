@@ -21,7 +21,7 @@ from ..logger import _logger
 from ..utils.notifications import (
     get_announcement_channels, send_dm, _location_display, _calendar_url,
 )
-from ..utils.email import send_reminder_email, send_user_status_email
+from ..utils.email import send_reminder_email_async, send_user_status_email_async
 
 
 class EventScheduler:
@@ -80,6 +80,7 @@ class EventScheduler:
                     f"otomatik olarak reddedildi.\n\n"
                     f"Yeni bir etkinlik talebi icin `/event create` komutunu kullanabilirsiniz.\n_{evt.id}_"
                 )
+                await send_user_status_email_async(evt.creator_slack_id, evt, "timeout")
 
     # ---- 2. COMPLETED gecisi ----
 
@@ -167,7 +168,7 @@ class EventScheduler:
 
         # E-posta gonder (read session kapandiktan sonra)
         for slack_id, evt in interested_users:
-            send_reminder_email(slack_id, evt, "day")
+            await send_reminder_email_async(slack_id, evt, "day")
 
         self._morning_reminder_last_date = utc_today
         _logger.info("[SCHED] Morning reminder sent for %d events", len(events))
@@ -241,7 +242,7 @@ class EventScheduler:
 
             # E-posta gonder
             for slack_id in interested_ids:
-                send_reminder_email(slack_id, evt, "10min")
+                await send_reminder_email_async(slack_id, evt, "10min")
 
             _logger.info("[SCHED] 10min reminder sent: %s", evt.id)
 

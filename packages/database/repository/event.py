@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timezone
 from sqlalchemy import select, func
 
 from packages.database.models.event import Event, EventInterest, EventStatus
@@ -27,8 +27,7 @@ class EventRepository(BaseRepository[Event]):
 
     async def list_current_month(self) -> list[Event]:
         """Bu ayin APPROVED etkinliklerini doner."""
-        from datetime import date as date_type
-        today = date_type.today()
+        today = datetime.now(timezone.utc).date()
         first_day = today.replace(day=1)
         if today.month == 12:
             last_day = today.replace(year=today.year + 1, month=1, day=1)

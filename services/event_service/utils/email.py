@@ -1,4 +1,8 @@
-"""Event Service — E-posta bildirim yardimcilari."""
+"""Event Service — E-posta bildirim yardimcilari.
+
+Sync fonksiyonlar: Bolt handler thread'lerinden cagirilir (_resolve_email → run_async).
+Async fonksiyonlar: Scheduler'dan cagirilir (_resolve_email_async → dogrudan await).
+"""
 from __future__ import annotations
 
 from packages.database.manager import db
@@ -6,7 +10,7 @@ from packages.database.repository.slack import SlackUserRepository
 from packages.settings import get_settings
 from packages.smtp.client import SmtpClient
 from packages.smtp.schema import EmailSchema
-from packages.database.models.event import Event
+from packages.database.models.event import Event, LocationType
 from ..logger import _logger
 
 
@@ -24,8 +28,26 @@ def _get_smtp() -> SmtpClient | None:
     )
 
 
+def _location_label(event: Event) -> str:
+    """E-posta icin okunabilir lokasyon metni."""
+    loc = event.location_type
+    display = {
+        LocationType.SLACK_CHANNEL: "Slack Kanali",
+        LocationType.ZOOM: "Zoom",
+        LocationType.YOUTUBE: "YouTube",
+        LocationType.GOOGLE_MEET: "Google Meet",
+        LocationType.DISCORD: "Discord",
+        LocationType.OTHER: "Diger",
+    }
+    return display.get(loc, str(loc))
+
+
+# ---------------------------------------------------------------------------
+# Email cozumleme — sync (Bolt handler'lar) ve async (scheduler) versiyonlari
+# ---------------------------------------------------------------------------
+
 def _resolve_email(slack_id: str) -> str | None:
-    """SlackUser tablosundan e-posta adresini cekerler. Bulunamazsa None doner."""
+    """SlackUser tablosundan e-posta adresini cekerler (sync — Bolt handler'lar icin)."""
     from services.event_service.core.event_loop import run_async
 
     async def _fetch():
@@ -41,6 +63,22 @@ def _resolve_email(slack_id: str) -> str | None:
         return None
 
 
+async def _resolve_email_async(slack_id: str) -> str | None:
+    """SlackUser tablosundan e-posta adresini cekerler (async — scheduler icin)."""
+    try:
+        async with db.session(read_only=True) as session:
+            repo = SlackUserRepository(session)
+            user = await repo.get_by_slack_id(slack_id)
+            return user.email if user else None
+    except Exception as e:
+        _logger.warning("[EVT-EMAIL] E-posta cozumlenemedi slack_id=%s: %s", slack_id, e)
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Sync e-posta fonksiyonlari (Bolt handler'lardan cagirilir)
+# ---------------------------------------------------------------------------
+
 def send_admin_notification(event: Event) -> None:
     """Admin'e yeni etkinlik talebi e-postasi gonderir."""
     s = get_settings()
@@ -48,6 +86,7 @@ def send_admin_notification(event: Event) -> None:
     if not smtp or not s.admin_email:
         return
     try:
+        loc_label = _location_label(event)
         subject = f"Yeni Etkinlik Talebi: {event.name}"
         body = (
             f"Etkinlik: {event.name}\n"
@@ -55,7 +94,7 @@ def send_admin_notification(event: Event) -> None:
             f"Aciklama: {event.description}\n"
             f"Tarih: {event.date} {event.time}\n"
             f"Sure: {event.duration_minutes} dakika\n"
-            f"Lokasyon: {event.location_type}\n"
+            f"Lokasyon: {loc_label}\n"
             f"Link: {event.link or '—'}\n"
             f"YZTA Talep: {event.yzta_request or '—'}\n"
             f"Talep Eden: {event.creator_slack_id}\n"
@@ -67,36 +106,49 @@ def send_admin_notification(event: Event) -> None:
 
 
 def send_user_status_email(slack_id: str, event: Event, status: str, admin_note: str | None = None) -> None:
-    """Kullaniciya onay/red/timeout e-postasi gonderir. slack_id'den e-posta cozumlenir."""
+    """Kullaniciya onay/red/timeout e-postasi gonderir (sync)."""
     smtp = _get_smtp()
     if not smtp:
         return
     user_email = _resolve_email(slack_id)
     if not user_email:
-        _logger.info("[EVT-EMAIL] E-posta bulunamadi, atlanıyor: slack_id=%s", slack_id)
+        _logger.info("[EVT-EMAIL] E-posta bulunamadi, atlaniyor: slack_id=%s", slack_id)
         return
-    try:
-        status_text = {"approved": "Onaylandi", "rejected": "Reddedildi", "timeout": "Zaman Asimi"}.get(status, status)
-        subject = f"Etkinlik {status_text}: {event.name}"
-        body = (
-            f"Etkinlik: {event.name}\n"
-            f"Tarih: {event.date} {event.time}\n"
-            f"Durum: {status_text}\n"
-        )
-        if admin_note:
-            body += f"Admin Notu: {admin_note}\n"
-        schema = EmailSchema(to=user_email, subject=subject, body=body)
-        smtp.send(schema)
-    except Exception as e:
-        _logger.error("[EVT-EMAIL] Kullanici bildirimi gonderilemedi: %s", e)
+    _send_status_email(smtp, user_email, event, status, admin_note)
 
 
-def send_reminder_email(slack_id: str, event: Event, reminder_type: str = "day") -> None:
-    """Hatirlatma e-postasi gonderir. slack_id'den e-posta cozumlenir."""
+def send_cancellation_email(slack_id: str, event: Event) -> None:
+    """Iptal bildirimi e-postasi gonderir (sync)."""
     smtp = _get_smtp()
     if not smtp:
         return
     user_email = _resolve_email(slack_id)
+    if not user_email:
+        return
+    _send_cancellation(smtp, user_email, event)
+
+
+def send_update_email(slack_id: str, event: Event) -> None:
+    """Guncelleme bildirimi e-postasi gonderir (sync)."""
+    smtp = _get_smtp()
+    if not smtp:
+        return
+    user_email = _resolve_email(slack_id)
+    if not user_email:
+        return
+    _send_update(smtp, user_email, event)
+
+
+# ---------------------------------------------------------------------------
+# Async e-posta fonksiyonlari (scheduler'dan cagirilir — deadlock onlenir)
+# ---------------------------------------------------------------------------
+
+async def send_reminder_email_async(slack_id: str, event: Event, reminder_type: str = "day") -> None:
+    """Hatirlatma e-postasi gonderir (async — scheduler icin)."""
+    smtp = _get_smtp()
+    if not smtp:
+        return
+    user_email = await _resolve_email_async(slack_id)
     if not user_email:
         return
     try:
@@ -116,14 +168,39 @@ def send_reminder_email(slack_id: str, event: Event, reminder_type: str = "day")
         _logger.error("[EVT-EMAIL] Hatirlatma gonderilemedi: %s", e)
 
 
-def send_cancellation_email(slack_id: str, event: Event) -> None:
-    """Iptal bildirimi e-postasi gonderir. slack_id'den e-posta cozumlenir."""
+async def send_user_status_email_async(slack_id: str, event: Event, status: str, admin_note: str | None = None) -> None:
+    """Kullaniciya onay/red/timeout e-postasi gonderir (async — scheduler icin)."""
     smtp = _get_smtp()
     if not smtp:
         return
-    user_email = _resolve_email(slack_id)
+    user_email = await _resolve_email_async(slack_id)
     if not user_email:
         return
+    _send_status_email(smtp, user_email, event, status, admin_note)
+
+
+# ---------------------------------------------------------------------------
+# Ortak e-posta gonderim yardimcilari (sync — SMTP kendisi sync)
+# ---------------------------------------------------------------------------
+
+def _send_status_email(smtp: SmtpClient, user_email: str, event: Event, status: str, admin_note: str | None) -> None:
+    try:
+        status_text = {"approved": "Onaylandi", "rejected": "Reddedildi", "timeout": "Zaman Asimi"}.get(status, status)
+        subject = f"Etkinlik {status_text}: {event.name}"
+        body = (
+            f"Etkinlik: {event.name}\n"
+            f"Tarih: {event.date} {event.time}\n"
+            f"Durum: {status_text}\n"
+        )
+        if admin_note:
+            body += f"Admin Notu: {admin_note}\n"
+        schema = EmailSchema(to=user_email, subject=subject, body=body)
+        smtp.send(schema)
+    except Exception as e:
+        _logger.error("[EVT-EMAIL] Kullanici bildirimi gonderilemedi: %s", e)
+
+
+def _send_cancellation(smtp: SmtpClient, user_email: str, event: Event) -> None:
     try:
         subject = f"Etkinlik Iptal Edildi: {event.name}"
         body = (
@@ -137,14 +214,7 @@ def send_cancellation_email(slack_id: str, event: Event) -> None:
         _logger.error("[EVT-EMAIL] Iptal bildirimi gonderilemedi: %s", e)
 
 
-def send_update_email(slack_id: str, event: Event) -> None:
-    """Guncelleme bildirimi e-postasi gonderir. slack_id'den e-posta cozumlenir."""
-    smtp = _get_smtp()
-    if not smtp:
-        return
-    user_email = _resolve_email(slack_id)
-    if not user_email:
-        return
+def _send_update(smtp: SmtpClient, user_email: str, event: Event) -> None:
     try:
         subject = f"Etkinlik Guncellendi: {event.name}"
         body = (

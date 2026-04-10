@@ -10,7 +10,7 @@ from slack_bolt import Ack, App
 from sqlalchemy import select
 
 from packages.database.manager import db
-from packages.database.models.event import Event, EventInterest, EventStatus
+from packages.database.models.event import Event, EventInterest, EventStatus, LocationType
 from packages.database.repository.event import EventRepository, EventInterestRepository
 from packages.settings import get_settings
 from packages.slack.client import slack_client
@@ -42,7 +42,7 @@ def _extract_form_values(values: dict) -> dict:
         "date": values.get("event_date", {}).get("val", {}).get("selected_date"),
         "time": values.get("event_time", {}).get("val", {}).get("selected_time"),
         "duration_minutes": int(values.get("event_duration", {}).get("val", {}).get("selected_option", {}).get("value", "60")),
-        "location_type": location_type,
+        "location_type": LocationType(location_type),
         "channel_id": values.get("event_channel", {}).get("val", {}).get("selected_channel"),
         "link": values.get("event_link", {}).get("val", {}).get("value"),
         "yzta_request": values.get("event_yzta", {}).get("val", {}).get("value"),
@@ -51,9 +51,9 @@ def _extract_form_values(values: dict) -> dict:
 
 def _validate_form(data: dict) -> str | None:
     """Backend validasyonu. Hata mesaji doner, gecerliyse None."""
-    if data["location_type"] == "slack_channel" and not data.get("channel_id"):
+    if data["location_type"] == LocationType.SLACK_CHANNEL and not data.get("channel_id"):
         return "Slack Kanali secildiginde kanal alani zorunludur."
-    if data["location_type"] != "slack_channel" and not data.get("link"):
+    if data["location_type"] != LocationType.SLACK_CHANNEL and not data.get("link"):
         return "Harici platform secildiginde link alani zorunludur."
     if not data.get("date") or not data.get("time"):
         return "Tarih ve saat zorunludur."
