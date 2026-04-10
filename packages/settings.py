@@ -28,6 +28,7 @@ class SystemSettings(BaseSettings):
     slack_startup_channel: Optional[str] = Field(None, description="Slack Startup Channel ID")
     slack_report_channel: Optional[str] = Field(None, description="Slack Report Channel ID")
     slack_command_channels: list[str] = Field(..., description="Slack Command Channel ID listesi")
+    slack_admin_channel: str = Field(..., description="Admin bildirim kanal ID'si (C...)")
 
     # Event Service Ayarlari
     event_channel: str = Field(..., description="Serbest Kursu kanal ID'si (C...)")
