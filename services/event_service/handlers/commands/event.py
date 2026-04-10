@@ -240,7 +240,7 @@ def _handle_list(client, user_id: str, channel_id: str) -> None:
         for evt, count in items:
             loc = _location_display(evt)
             line = (
-                f"• *{evt.id[:12]}* | *{evt.name}*\n"
+                f"• *{evt.id}* | *{evt.name}*\n"
                 f"  <@{evt.creator_slack_id}> · {evt.date.strftime('%d %B')} {evt.time.strftime('%H:%M')} · {loc}"
             )
             if evt.link:
@@ -295,7 +295,7 @@ def _handle_my_list(client, user_id: str, channel_id: str) -> None:
             loc = _location_display(evt)
             status_label = STATUS_LABELS.get(evt.status.value, evt.status.value)
             line = (
-                f"• *{evt.id[:12]}* | *{evt.name}*\n"
+                f"• *{evt.id}* | *{evt.name}*\n"
                 f"  {evt.date.strftime('%d %B')} {evt.time.strftime('%H:%M')} · {loc} · {status_label}"
             )
             if count > 0:
@@ -346,7 +346,7 @@ def _handle_history(client, user_id: str, channel_id: str) -> None:
             loc = _location_display(evt)
             status_label = STATUS_LABELS.get(evt.status.value, evt.status.value)
             line = (
-                f"• *{evt.id[:12]}* | *{evt.name}*\n"
+                f"• *{evt.id}* | *{evt.name}*\n"
                 f"  <@{evt.creator_slack_id}> · {evt.date.strftime('%d %B')} {evt.time.strftime('%H:%M')} · {loc}\n"
                 f"  {status_label}"
             )
