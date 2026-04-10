@@ -153,7 +153,7 @@ class EventScheduler:
             for evt in events:
                 interests = await interest_repo.list_by_event(evt.id)
                 for interest in interests:
-                    send_reminder_email("", evt, "day")
+                    send_reminder_email(interest.slack_id, evt, "day")
 
     # ---- 4. 10dk oncesi hatirlatma ----
 
@@ -221,7 +221,7 @@ class EventScheduler:
                 # Ilgi gosterenlere e-posta
                 interests = await interest_repo.list_by_event(evt.id)
                 for interest in interests:
-                    send_reminder_email("", evt, "10min")
+                    send_reminder_email(interest.slack_id, evt, "10min")
 
                 _logger.info("[SCHED] 10min reminder sent: %s", evt.id)
 

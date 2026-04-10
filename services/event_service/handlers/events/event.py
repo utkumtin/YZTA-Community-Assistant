@@ -314,7 +314,7 @@ def handle_admin_approve(ack: Ack, body: dict, client, view):
         f"Duyuru #serbest-kursu kanalina gonderildi.\n_{evt.id}_"
     )
 
-    send_user_status_email("", evt, "approved", note)
+    send_user_status_email(evt.creator_slack_id, evt, "approved", note)
     post_announcement(evt)
 
     _logger.info("[EVT] Event approved: %s by admin %s", event_id, admin_id)
@@ -353,7 +353,7 @@ def handle_admin_reject(ack: Ack, body: dict, client, view):
         f"Yeni bir etkinlik talebi icin `/event create` komutunu kullanabilirsiniz.\n_{evt.id}_"
     )
 
-    send_user_status_email("", evt, "rejected", note)
+    send_user_status_email(evt.creator_slack_id, evt, "rejected", note)
 
     _logger.info("[EVT] Event rejected: %s by admin %s", event_id, admin_id)
 
