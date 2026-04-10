@@ -28,7 +28,7 @@ settings = get_settings()
 
 
 def _run_async(coro, timeout=30.0):
-    from services.challenge_service.core.event_loop import run_async
+    from services.event_service.core.event_loop import run_async
     return run_async(coro, timeout=timeout)
 
 
