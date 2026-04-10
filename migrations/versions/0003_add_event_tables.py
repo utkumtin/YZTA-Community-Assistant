@@ -45,6 +45,7 @@ def upgrade() -> None:
         sa.Column("meta", JSONB, nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.UniqueConstraint("event_id", "slack_id", name="uq_event_interest_event_user"),
     )
 
 

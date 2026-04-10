@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from enum import Enum as PyEnum
 from datetime import date, time
-from sqlalchemy import Date, ForeignKey, Integer, String, Text, Time, Enum as SAEnum
+from sqlalchemy import Date, ForeignKey, Integer, String, Text, Time, UniqueConstraint, Enum as SAEnum
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -52,6 +52,9 @@ class Event(Base, IDMixin, TimestampMixin):
 class EventInterest(Base, IDMixin, TimestampMixin):
     __tablename__ = "event_interest"
     __prefix__ = "EVI"
+    __table_args__ = (
+        UniqueConstraint("event_id", "slack_id", name="uq_event_interest_event_user"),
+    )
 
     event_id: Mapped[str] = mapped_column(String(60), ForeignKey("events.id"), nullable=False, index=True)
     slack_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
