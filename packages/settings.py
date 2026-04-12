@@ -24,17 +24,27 @@ class SystemSettings(BaseSettings):
     admin_email: Optional[str] = Field(None, description="Admin e-posta adresi (virgülle ayrılmış birden fazla)")
 
     # Slack Bilgileri
-    slack_admins: list[str] = Field(..., description="Slack Admin ID listesi")
+    slack_admins_env: str = Field(..., alias="SLACK_ADMIN_SLACK_ID", description="Slack Admin ID listesi")
     slack_startup_channel: Optional[str] = Field(None, description="Slack Startup Channel ID")
     slack_report_channel: Optional[str] = Field(None, description="Slack Report Channel ID")
-    slack_command_channels: list[str] = Field(..., description="Slack Command Channel ID listesi")
+    slack_command_channels_env: str = Field(..., alias="SLACK_CHALLENGE_CHANNEL", description="Slack Command Channel ID listesi")
+
+    @property
+    def slack_admins(self) -> list[str]:
+        if not self.slack_admins_env: return []
+        return [item.strip() for item in self.slack_admins_env.split(',') if item.strip()]
+
+    @property
+    def slack_command_channels(self) -> list[str]:
+        if not self.slack_command_channels_env: return []
+        return [item.strip() for item in self.slack_command_channels_env.split(',') if item.strip()]
 
     # Database Ayarları
-    username: str = Field(..., description="Veritabanı kullanıcı adı")
-    password: str = Field(..., description="Veritabanı şifresi")
-    host: str = Field(..., description="Veritabanı host")
-    port: int = Field(..., description="Veritabanı port")
-    database: str = Field(..., description="Veritabanı adı")
+    username: str = Field(..., alias="POSTGRES_USER", description="Veritabanı kullanıcı adı")
+    password: str = Field(..., alias="POSTGRES_PASSWORD", description="Veritabanı şifresi")
+    host: str = Field(..., alias="POSTGRES_HOST", description="Veritabanı host")
+    port: int = Field(..., alias="POSTGRES_PORT", description="Veritabanı port")
+    database: str = Field(..., alias="POSTGRES_DB", description="Veritabanı adı")
     db_pool_size: int = Field(5, ge=1, description="SQLAlchemy pool boyutu")
     db_max_overflow: int = Field(10, ge=0, description="Pool overflow bağlantı sayısı")
     db_pool_timeout: int = Field(30, ge=1, description="Pool'dan bağlantı bekleme süresi (saniye)")
@@ -48,15 +58,7 @@ class SystemSettings(BaseSettings):
         extra="ignore"
     )
 
-    @field_validator('slack_admins', 'slack_command_channels', mode='before')
-    @classmethod
-    def parse_comma_separated_list(cls, v: str) -> list[str]:
-        """Virgülle ayrılmış string'i listeye çevirir."""
-        if isinstance(v, list):
-            return v
-        if not v:
-            return []
-        return [item.strip() for item in v.split(',') if item.strip()]
+
 
 # Global Settings Instance
 _settings = SystemSettings()
