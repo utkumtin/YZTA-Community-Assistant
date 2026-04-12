@@ -176,3 +176,115 @@ class Layouts:
             )
         )
         return blocks
+
+    @staticmethod
+    def feature_request_modal() -> Dict:
+        """
+        /cemilimyapar komutuyla açılan özellik talebi modal'ı.
+        Dönen değer bir blok listesi değil, modal dict'idir (views_open'a verilir).
+        """
+        return {
+            "type": "modal",
+            "callback_id": "feature_request_modal",
+            "title": {"type": "plain_text", "text": "Özellik Talebi", "emoji": True},
+            "submit": {"type": "plain_text", "text": "Gönder 🚀", "emoji": True},
+            "close": {"type": "plain_text", "text": "İptal", "emoji": True},
+            "blocks": [
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": (
+                            "👋 *Cemil'e bir özellik talebi gönder!*\n"
+                            "Topluluk asistanına ne eklemesini isterdin? "
+                            "Fikrin haftalık raporlarda değerlendirilecek."
+                        ),
+                    },
+                },
+                {"type": "divider"},
+                {
+                    "type": "input",
+                    "block_id": "feature_input_block",
+                    "label": {
+                        "type": "plain_text",
+                        "text": "Fikrin nedir?",
+                        "emoji": True,
+                    },
+                    "element": {
+                        "type": "plain_text_input",
+                        "action_id": "feature_text_input",
+                        "multiline": True,
+                        "placeholder": {
+                            "type": "plain_text",
+                            "text": "Örnek: Haftalık challenge özetlerini DM olarak al…",
+                        },
+                        "min_length": 10,
+                        "max_length": 500,
+                    },
+                },
+            ],
+        }
+
+    @staticmethod
+    def feature_request_edit_modal(existing_text: str, request_id: str) -> Dict:
+        """
+        'Evet, düzenleyeyim' butonuyla açılan düzenleme modal'ı.
+        request_id, private_metadata olarak saklanır.
+        Dönen değer bir blok listesi değil, modal dict'idir (views_open'a verilir).
+        """
+        return {
+            "type": "modal",
+            "callback_id": "feature_request_edit_modal",
+            "private_metadata": request_id,
+            "title": {"type": "plain_text", "text": "Fikri Düzenle ✏️", "emoji": True},
+            "submit": {"type": "plain_text", "text": "Güncelle ✅", "emoji": True},
+            "close": {"type": "plain_text", "text": "Vazgeç", "emoji": True},
+            "blocks": [
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": "Mevcut fikrin aşağıda gösteriliyor. Düzenleyip güncelle!",
+                    },
+                },
+                {"type": "divider"},
+                {
+                    "type": "input",
+                    "block_id": "feature_input_block",
+                    "label": {
+                        "type": "plain_text",
+                        "text": "Güncel fikrin:",
+                        "emoji": True,
+                    },
+                    "element": {
+                        "type": "plain_text_input",
+                        "action_id": "feature_text_input",
+                        "multiline": True,
+                        "initial_value": existing_text,
+                        "min_length": 10,
+                        "max_length": 500,
+                    },
+                },
+            ],
+        }
+
+    @staticmethod
+    def feature_request_calibration_summary(clustering_log: dict) -> List[Dict]:
+        """
+        Clustering pipeline sonuç özeti — /cemil-report raporuna eklenir.
+
+        clustering_log beklenen anahtarlar:
+          clustered (int), noise (int), new_labels (int)
+        """
+        clustered = clustering_log.get("clustered", 0)
+        noise = clustering_log.get("noise", 0)
+        new_labels = clustering_log.get("new_labels", 0)
+        return [
+            BlockBuilder.divider(),
+            BlockBuilder.section(
+                f"*📐 Clustering Özeti*\n"
+                f"• Kümelenen talep: *{clustered}*\n"
+                f"• Gürültü (kümelenemeyen): *{noise}*\n"
+                f"• Yeni küme etiketi üretildi: *{new_labels}*"
+            ),
+        ]

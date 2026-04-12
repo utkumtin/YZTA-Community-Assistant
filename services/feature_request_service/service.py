@@ -67,6 +67,7 @@ class FeatureRequestService:
     def __init__(self) -> None:
         self.logger = logging.getLogger("feature_request_service.FeatureRequestService")
         self.vector_client = VectorClient()
+        self.groq_client = GroqClient()
         self.db = DatabaseManager()
 
     # SUBMIT AKIŞI
@@ -107,8 +108,6 @@ class FeatureRequestService:
             except Exception as exc:
                 self.logger.error(f"Embed hatası: {exc}", exc_info=True)
                 # Embedding başarısız olsa dahi kaydı `embedding_failed` statusuyla ekle
-                from src.infrastructure.models.feature_request import FeatureRequest
-
                 failed_req = FeatureRequest(
                     user_id=user_id,
                     request_raw=raw_text,
@@ -135,12 +134,10 @@ class FeatureRequestService:
             fraud_score = await self.detect_fraud(vector, user_id, repo)
 
             # 5. Kaydet
-            from src.infrastructure.models.feature_request import FeatureRequest
-
             new_request = FeatureRequest(
                 user_id=user_id,
                 request_raw=raw_text,
-                request_embedded=self.vector_client.to_bytes(vector),
+                request_embedded=vector.tolist(),
                 status="embedded",
                 fraud_score=fraud_score,
             )
@@ -180,14 +177,14 @@ class FeatureRequestService:
 
             try:
                 new_vector = self.vector_client.embed(new_text)
-                new_blob = self.vector_client.to_bytes(new_vector)
+                new_embedded = new_vector.tolist()
             except Exception as exc:
                 self.logger.error(f"Güncelleme embed hatası: {exc}", exc_info=True)
-                new_blob = None
+                new_embedded = None
 
             request.request_raw = new_text
-            request.request_embedded = new_blob
-            request.status = "embedded" if new_blob else "embedding_failed"
+            request.request_embedded = new_embedded
+            request.status = "embedded" if new_embedded else "embedding_failed"
             request.cluster_id = None  # Önceki cluster atamasını sıfırla
             await repo.update(request)
 
@@ -256,7 +253,7 @@ class FeatureRequestService:
             if record.request_embedded is None:
                 continue
             try:
-                existing_vec = self.vector_client.from_bytes(record.request_embedded)
+                existing_vec = np.array(record.request_embedded, dtype=np.float32)
                 similarity = self.vector_client.cosine_similarity(
                     new_vector, existing_vec
                 )
@@ -314,7 +311,7 @@ class FeatureRequestService:
         similar_count = 0
         for record in others:
             try:
-                other_vec = self.vector_client.from_bytes(record.request_embedded)
+                other_vec = np.array(record.request_embedded, dtype=np.float32)
                 similarity = self.vector_client.cosine_similarity(new_vector, other_vec)
                 if similarity >= FRAUD_THRESHOLD:
                     similar_count += 1
@@ -369,7 +366,7 @@ class FeatureRequestService:
                 if record.request_embedded is None:
                     continue
                 try:
-                    vec = self.vector_client.from_bytes(record.request_embedded)
+                    vec = np.array(record.request_embedded, dtype=np.float32)
                     vectors.append(vec)
                     valid_ids.append(record.id)
                 except Exception as exc:
@@ -454,10 +451,6 @@ class FeatureRequestService:
                 sample_texts = [r.request_raw for r in sample_records]
 
                 label_text = await self._generate_cluster_label(cid, sample_texts)
-
-                from src.infrastructure.models.feature_request import (
-                    FeatureClusterLabel,
-                )
 
                 new_label = FeatureClusterLabel(
                     cluster_id=cid,
@@ -604,23 +597,24 @@ class FeatureRequestService:
 
     async def _notify_admins(self, message: str) -> None:
         """Sistem uyarılarını slack_admins'e DM atar."""
-        from src.core.settings import get_settings
-        from src.slack import slack_client
+        from packages.settings import get_settings
+        from packages.slack.client import slack_client
 
         settings = get_settings()
 
         try:
             for admin_id in settings.slack_admins:
-                client = slack_client.bot_client
-                await client.chat_postMessage(channel=admin_id, text=message)
+                await slack_client.bot_client.chat_postMessage(
+                    channel=admin_id, text=message
+                )
         except Exception as exc:
             self.logger.error(f"Admin bildirim hatası: {exc}", exc_info=True)
 
     async def send_weekly_report(self) -> None:
         """generate_admin_report() çağırıp dönen raporu adminlere DM atar."""
-        from src.slack.blocks.layouts import Layouts
-        from src.core.settings import get_settings
-        from src.slack import slack_client
+        from packages.settings import get_settings
+        from packages.slack.client import slack_client
+        from packages.slack.blocks.layouts import Layouts
 
         try:
             report_text = await self.generate_admin_report()
@@ -628,8 +622,7 @@ class FeatureRequestService:
 
             settings = get_settings()
             for admin_id in settings.slack_admins:
-                client = slack_client.bot_client
-                await client.chat_postMessage(
+                await slack_client.bot_client.chat_postMessage(
                     channel=admin_id,
                     text="Haftalık Özellik Talepleri Raporu",
                     blocks=blocks,
@@ -653,7 +646,7 @@ class FeatureRequestService:
             for record in failed_records:
                 try:
                     vector = self.vector_client.embed(record.request_raw)
-                    record.request_embedded = self.vector_client.to_bytes(vector)
+                    record.request_embedded = vector.tolist()
                     record.status = "embedded"
                     success_count += 1
                 except Exception as exc:
