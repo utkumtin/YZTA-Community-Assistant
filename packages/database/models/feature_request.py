@@ -1,0 +1,60 @@
+from datetime import datetime
+from typing import TYPE_CHECKING
+
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, LargeBinary, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from packages.database.mixins import Base, IDMixin, TimestampMixin
+
+if TYPE_CHECKING:
+    from packages.database.models.user import User
+
+
+class FeatureRequest(Base, IDMixin, TimestampMixin):
+    # Kullanıcılardan gelen tekil özellik talebi.
+
+    __tablename__ = "feature_requests"
+    __prefix__ = "FRQ"
+
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("slack_users.id"), nullable=False, index=True
+    )
+    request_raw: Mapped[str] = mapped_column(Text, nullable=False)
+    request_embedded: Mapped[bytes] = mapped_column(LargeBinary, nullable=True)
+
+    # embedded | clustered | reported | embedding_failed | clustering_failed
+    status: Mapped[str] = mapped_column(
+        String, default="embedded", nullable=False, index=True
+    )
+
+    cluster_id: Mapped[int] = mapped_column(Integer, nullable=True)
+    fraud_score: Mapped[float] = mapped_column(Float, nullable=True)
+
+    user: Mapped["User"] = relationship("SlackUser", backref="feature_requests")
+
+    def __repr__(self) -> str:
+        return (
+            f"<FeatureRequest(id={self.id!r}, "
+            f"user_id={self.user_id!r}, "
+            f"status={self.status!r}, "
+            f"cluster_id={self.cluster_id!r})>"
+        )
+
+
+class FeatureClusterLabel(Base, IDMixin, TimestampMixin):
+    # HDBSCAN tarafından oluşturulan cluster'ların LLM ile isimlendirilmiş hali.
+
+    __tablename__ = "feature_cluster_labels"
+    __prefix__ = "FCL"
+
+    cluster_id: Mapped[int] = mapped_column(Integer, nullable=False, unique=True)
+    label: Mapped[str] = mapped_column(String, nullable=False)
+    generated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    report_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    def __repr__(self) -> str:
+        return (
+            f"<FeatureClusterLabel(id={self.id!r}, "
+            f"cluster_id={self.cluster_id!r}, "
+            f"label={self.label!r})>"
+        )
