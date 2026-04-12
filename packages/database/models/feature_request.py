@@ -1,3 +1,12 @@
+"""
+Feature Request Modelleri — Akademi Topluluk Asistanı
+
+AMAÇ
+----
+/cemilimyapar komutuyla toplanan özellik taleplerini ve bu taleplerin
+semantik kümeleme (clustering) sonuçlarını veritabanında saklar.
+"""
+
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -7,17 +16,19 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from packages.database.mixins import Base, IDMixin, TimestampMixin
 
 if TYPE_CHECKING:
-    from packages.database.models.user import User
+    from src.infrastructure.models.user import User
 
 
 class FeatureRequest(Base, IDMixin, TimestampMixin):
-    # Kullanıcılardan gelen tekil özellik talebi.
+    """
+    Kullanıcılardan gelen tekil özellik talebi.
+    """
 
     __tablename__ = "feature_requests"
     __prefix__ = "FRQ"
 
     user_id: Mapped[str] = mapped_column(
-        ForeignKey("slack_users.id"), nullable=False, index=True
+        ForeignKey("users.id"), nullable=False, index=True
     )
     request_raw: Mapped[str] = mapped_column(Text, nullable=False)
     request_embedded: Mapped[bytes] = mapped_column(LargeBinary, nullable=True)
@@ -30,7 +41,7 @@ class FeatureRequest(Base, IDMixin, TimestampMixin):
     cluster_id: Mapped[int] = mapped_column(Integer, nullable=True)
     fraud_score: Mapped[float] = mapped_column(Float, nullable=True)
 
-    user: Mapped["User"] = relationship("SlackUser", backref="feature_requests")
+    user: Mapped["User"] = relationship("User", backref="feature_requests")
 
     def __repr__(self) -> str:
         return (
@@ -42,7 +53,9 @@ class FeatureRequest(Base, IDMixin, TimestampMixin):
 
 
 class FeatureClusterLabel(Base, IDMixin, TimestampMixin):
-    # HDBSCAN tarafından oluşturulan cluster'ların LLM ile isimlendirilmiş hali.
+    """
+    HDBSCAN tarafından oluşturulan kümelerin (cluster) LLM ile isimlendirilmiş hali.
+    """
 
     __tablename__ = "feature_cluster_labels"
     __prefix__ = "FCL"
