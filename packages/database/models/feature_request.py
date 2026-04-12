@@ -1,10 +1,7 @@
 """
-Feature Request Modelleri — Akademi Topluluk Asistanı
+Feature Request Modelleri
 
-AMAÇ
-----
-/cemilimyapar komutuyla toplanan özellik taleplerini ve bu taleplerin
-semantik kümeleme (clustering) sonuçlarını veritabanında saklar.
+/cemilimyapar komutuyla toplanan özellik taleplerini ve bu taleplerin clustering sonuçlarını veritabanında saklar.
 """
 
 from datetime import datetime
@@ -16,7 +13,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from packages.database.mixins import Base, IDMixin, TimestampMixin
 
 if TYPE_CHECKING:
-    from src.infrastructure.models.user import User
+    from packages.database.models.user import User
 
 
 class FeatureRequest(Base, IDMixin, TimestampMixin):
