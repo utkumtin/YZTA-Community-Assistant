@@ -39,9 +39,21 @@ MODEL
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
-from packages.core.exceptions import VectorClientError
-from packages.core.logger import logger
-from packages.core.singleton import SingletonMeta
+class VectorClientError(Exception):
+    """Vector client operations için temel hata sınıfı."""
+    pass
+
+class SingletonMeta(type):
+    """Sınıfın sadece tek bir örneğinin (singleton) olmasını sağlayan metaclass."""
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super().__call__(*args, **kwargs)
+        return cls._instances[cls]
+
+from packages.logger.manager import get_logger
+logger = get_logger("vector_client")
 
 
 class VectorClient(metaclass=SingletonMeta):
