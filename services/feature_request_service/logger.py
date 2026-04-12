@@ -26,6 +26,9 @@ FEATURE_REQUEST_SERVICE_LOGGING: dict[str, Any] = {
         "queue": {
             "()": "packages.logger.formatters.QueueMessageFormatter",
         },
+        "clustering": {
+            "()": "packages.logger.formatters.ClusteringFormatter",
+        },
     },
     "filters": {
         "system_only": {
@@ -39,6 +42,9 @@ FEATURE_REQUEST_SERVICE_LOGGING: dict[str, Any] = {
         },
         "queue_only": {
             "()": "packages.logger.filters.QueueFilter",
+        },
+        "clustering_only": {
+            "()": "packages.logger.filters.ClusteringFilter",
         },
     },
     "handlers": {
@@ -89,10 +95,20 @@ FEATURE_REQUEST_SERVICE_LOGGING: dict[str, Any] = {
             "backupCount": 5,
             "encoding": "utf-8",
         },
+        "clustering": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "level": "INFO",
+            "formatter": "clustering",
+            "filters": ["clustering_only"],
+            "filename": str(_LOG_DIR / "clustering.log"),
+            "maxBytes": 5 * 1024 * 1024,
+            "backupCount": 10,
+            "encoding": "utf-8",
+        },
     },
     "root": {
         "level": "INFO",
-        "handlers": ["stdout", "console", "errors", "api", "queue"],
+        "handlers": ["stdout", "console", "errors", "api", "queue", "clustering"],
     },
 }
 

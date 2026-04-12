@@ -31,6 +31,7 @@ DÖNÜŞ TİPLERİ (submit_request)
 
 import logging
 import numpy as np
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
@@ -49,12 +50,33 @@ import hdbscan
 
 # Constants
 
-WEEKLY_QUOTA = 2  # Kullanıcı başına haftalık maksimum submit sayısı
-SIMILARITY_THRESHOLD = 0.85  # Bu eşiğin üstündeki cosine similarity "benzer" sayılır
-FRAUD_THRESHOLD = 0.90  # Bu eşiğin üstündeki cross-user similarity "fraud" uyarısı
-FRAUD_WINDOW_DAYS = 7  # Fraud tespiti için geriye bakılan gün sayısı
-UMAP_N_COMPONENTS = 10  # UMAP çıktı boyutu (768 → 10; HDBSCAN için yeterli)
-HDBSCAN_MIN_CLUSTER = 3  # HDBSCAN min_cluster_size
+WEEKLY_QUOTA = 2
+SIMILARITY_THRESHOLD = 0.85
+FRAUD_THRESHOLD = 0.90
+FRAUD_WINDOW_DAYS = 7
+
+
+@dataclass
+class ClusteringParams:
+    """UMAP ve HDBSCAN için parametre kümesi."""
+    min_cluster_size: int
+    min_samples: int
+    n_components: int
+    n_neighbors: int
+
+    @classmethod
+    def from_batch_size(cls, n: int) -> "ClusteringParams":
+        """Batch büyüklüğüne göre dinamik parametre hesaplaması."""
+        min_cluster_size = max(3, int(n * 0.025))
+        min_samples      = max(2, int(min_cluster_size * 0.6))
+        n_components     = min(10, max(5, int(np.log2(max(n, 2)))))
+        n_neighbors      = min(15, max(5, int(np.sqrt(n))))
+        return cls(min_cluster_size, min_samples, n_components, n_neighbors)
+
+
+# None ise batch büyüklüğüne göre dinamik hesaplama kullanılır.
+# Kalibrasyon tamamlanınca buraya ClusteringParams(...) değeri girilir.
+FIXED_CLUSTERING_PARAMS: ClusteringParams | None = None
 
 
 class FeatureRequestService:
@@ -375,10 +397,10 @@ class FeatureRequestService:
                         extra={"record_id": record.id},
                     )
 
-            if len(vectors) < HDBSCAN_MIN_CLUSTER:
+            if len(vectors) < 3:
                 self.logger.info(
                     f"Kümeleme için yeterli kayıt yok "
-                    f"(mevcut={len(vectors)}, min={HDBSCAN_MIN_CLUSTER})."
+                    f"(mevcut={len(vectors)}, min=3)."
                 )
                 return {"clustered": 0, "noise": len(vectors), "new_labels": 0}
 
@@ -388,16 +410,18 @@ class FeatureRequestService:
             norms = np.where(norms == 0, 1.0, norms)  # sıfır bölme koruması
             matrix = matrix / norms
 
+            # --- Parametreler ---
+            params = FIXED_CLUSTERING_PARAMS or ClusteringParams.from_batch_size(len(vectors))
+
             # --- UMAP boyut indirgeme ---
             self.logger.info(
-                f"UMAP çalışıyor: {matrix.shape} → ({len(vectors)}, {UMAP_N_COMPONENTS})"
+                f"UMAP çalışıyor: {matrix.shape} → ({len(vectors)}, {params.n_components})"
             )
             try:
-                n_neighbors = min(15, len(vectors) - 1)
                 reducer = umap.UMAP(
-                    n_components=UMAP_N_COMPONENTS,
+                    n_components=params.n_components,
                     metric="cosine",
-                    n_neighbors=n_neighbors,
+                    n_neighbors=min(params.n_neighbors, len(vectors) - 1),
                     random_state=42,
                 )
                 reduced = reducer.fit_transform(matrix)
@@ -414,7 +438,8 @@ class FeatureRequestService:
             self.logger.info("HDBSCAN kümeleme başlatılıyor...")
             try:
                 clusterer = hdbscan.HDBSCAN(
-                    min_cluster_size=HDBSCAN_MIN_CLUSTER,
+                    min_cluster_size=params.min_cluster_size,
+                    min_samples=params.min_samples,
                     metric="euclidean",
                     prediction_data=True,
                 )
@@ -463,17 +488,52 @@ class FeatureRequestService:
                 new_labels_count += 1
 
             self.logger.info(
-                f"Clustering pipeline tamamlandı.",
+                "Clustering pipeline tamamlandı.",
                 extra={
                     "clustered": clustered_count,
                     "noise": noise_count,
                     "new_labels": new_labels_count,
                 },
             )
+
+            # --- Kalibrasyon logņ ---
+            sil_score = None
+            unique_cluster_list = list(set(int(l) for l in labels if l != -1))
+            try:
+                if len(unique_cluster_list) >= 2:
+                    from sklearn.metrics import silhouette_score
+                    sil_score = round(float(silhouette_score(reduced, labels)), 4)
+            except Exception:
+                pass
+
+            cluster_sizes = sorted(
+                [int(np.sum(labels == cid)) for cid in unique_cluster_list],
+                reverse=True,
+            )
+
+            clustering_log = {
+                "run_date":          datetime.now().isoformat(),
+                "n_sentences":       len(vectors),
+                "min_cluster_size":  params.min_cluster_size,
+                "min_samples":       params.min_samples,
+                "n_components":      params.n_components,
+                "n_neighbors":       params.n_neighbors,
+                "n_clusters_found":  len(unique_cluster_list),
+                "noise_ratio":       round(noise_count / len(vectors), 4) if vectors else 0.0,
+                "silhouette_score":  sil_score,
+                "cluster_sizes":     cluster_sizes,
+                "param_source":      "fixed" if FIXED_CLUSTERING_PARAMS else "dynamic",
+            }
+            self.logger.info(
+                "clustering_run",
+                extra={"clustering": clustering_log},
+            )
+
             return {
-                "clustered": clustered_count,
-                "noise": noise_count,
-                "new_labels": new_labels_count,
+                "clustered":      clustered_count,
+                "noise":          noise_count,
+                "new_labels":     new_labels_count,
+                "clustering_log": clustering_log,
             }
 
     async def _generate_cluster_label(
@@ -611,14 +671,20 @@ class FeatureRequestService:
             self.logger.error(f"Admin bildirim hatası: {exc}", exc_info=True)
 
     async def send_weekly_report(self) -> None:
-        """generate_admin_report() çağırıp dönen raporu adminlere DM atar."""
+        """Clustering pipeline'ı çalıştırır, rapor üretir ve adminlere DM atar."""
         from packages.settings import get_settings
         from packages.slack.client import slack_client
         from packages.slack.blocks.layouts import Layouts
 
         try:
+            cr = await self.run_clustering_pipeline()
             report_text = await self.generate_admin_report()
             blocks = Layouts.feature_request_report(report_text)
+
+            if cr and "clustering_log" in cr:
+                blocks.extend(
+                    Layouts.feature_request_calibration_summary(cr["clustering_log"])
+                )
 
             settings = get_settings()
             for admin_id in settings.slack_admins:
