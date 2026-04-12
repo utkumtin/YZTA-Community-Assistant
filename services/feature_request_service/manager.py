@@ -3,6 +3,8 @@
 import logging
 from typing import Optional
 from packages.database.manager import db
+from services.feature_request_service.service import FeatureRequestService
+from services.feature_request_service.core.monitor.feature_monitor import FeatureRequestMonitor
 
 _logger = logging.getLogger("feature_request_service.manager")
 
@@ -18,7 +20,8 @@ class FeatureRequestServiceManager:
     def __init__(self):
         if hasattr(self, "_initialized") and self._initialized:
             return
-        self._monitor = None  # Adım 10'da set edilecek
+        self._service = FeatureRequestService()
+        self._monitor = FeatureRequestMonitor(self._service)
         self._initialized = True
         _logger.info("[SVC] Feature request manager init")
 
