@@ -1,10 +1,5 @@
 """
-Feature Request Repository — Akademi Topluluk Asistanı
-
-AMAÇ
-----
-FeatureRequest ve FeatureClusterLabel modelleri üzerinde CRUD ve sorgulama işlemleri.
-Asla commit() atmaz, değişikleri flush() yapar; transaction kontrolü DatabaseManager'dadır.
+Feature Request Repository
 
 METODLAR
 --------

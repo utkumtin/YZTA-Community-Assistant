@@ -7,8 +7,9 @@ Feature Request Modelleri
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, LargeBinary, String, Text
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from pgvector.sqlalchemy import Vector
 
 from packages.database.mixins import Base, IDMixin, TimestampMixin
 
@@ -28,7 +29,7 @@ class FeatureRequest(Base, IDMixin, TimestampMixin):
         ForeignKey("users.id"), nullable=False, index=True
     )
     request_raw: Mapped[str] = mapped_column(Text, nullable=False)
-    request_embedded: Mapped[bytes] = mapped_column(LargeBinary, nullable=True)
+    request_embedded: Mapped[list[float]] = mapped_column(Vector(768), nullable=True)
 
     # embedded | clustered | reported | embedding_failed | clustering_failed
     status: Mapped[str] = mapped_column(
