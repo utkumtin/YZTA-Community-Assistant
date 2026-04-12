@@ -1,5 +1,7 @@
+from typing import Dict, List, Optional
+
 from .builder import BlockBuilder, Formatter
-from typing import List, Dict, Any, Optional
+
 
 class Layouts:
     """
@@ -10,33 +12,41 @@ class Layouts:
     @staticmethod
     def error(title: str, message: str, details: Optional[str] = None) -> List[Dict]:
         """Kırmızı temalı (emoji ile) hata mesajı layoutu."""
-        blocks = [
-            BlockBuilder.header(f"🛑 {title}"),
-            BlockBuilder.section(message)
-        ]
+        blocks = [BlockBuilder.header(f"🛑 {title}"), BlockBuilder.section(message)]
         if details:
-            blocks.append(BlockBuilder.context([f"ℹ️ *Hata Detayı:* {Formatter.code(details)}"]))
+            blocks.append(
+                BlockBuilder.context([f"ℹ️ *Hata Detayı:* {Formatter.code(details)}"])
+            )
         return blocks
 
     @staticmethod
-    def success(title: str, message: str, action_text: Optional[str] = None, action_id: Optional[str] = None) -> List[Dict]:
+    def success(
+        title: str,
+        message: str,
+        action_text: Optional[str] = None,
+        action_id: Optional[str] = None,
+    ) -> List[Dict]:
         """Yeşil temalı başarı mesajı layoutu."""
-        blocks = [
-            BlockBuilder.header(f"✅ {title}"),
-            BlockBuilder.section(message)
-        ]
+        blocks = [BlockBuilder.header(f"✅ {title}"), BlockBuilder.section(message)]
         if action_text and action_id:
-            blocks.append(BlockBuilder.actions([
-                BlockBuilder.button(action_text, action_id, style="primary")
-            ]))
+            blocks.append(
+                BlockBuilder.actions(
+                    [BlockBuilder.button(action_text, action_id, style="primary")]
+                )
+            )
         return blocks
 
     @staticmethod
-    def info_card(title: str, description: str, icon: str = "ℹ️", fields: Optional[List[str]] = None) -> List[Dict]:
+    def info_card(
+        title: str,
+        description: str,
+        icon: str = "ℹ️",
+        fields: Optional[List[str]] = None,
+    ) -> List[Dict]:
         """Bilgilendirme kartı (örn. profil, yardım içeriği)."""
         blocks = [
             BlockBuilder.header(f"{icon} {title}"),
-            BlockBuilder.section(description)
+            BlockBuilder.section(description),
         ]
         if fields:
             blocks.append(BlockBuilder.section(fields=fields))
@@ -44,23 +54,36 @@ class Layouts:
 
     @staticmethod
     def challenge_invitation(
-        title: str, description: str, theme: str, difficulty: str,
-        action_id: str, challenge_id: str
+        title: str,
+        description: str,
+        theme: str,
+        difficulty: str,
+        action_id: str,
+        challenge_id: str,
     ) -> List[Dict]:
         """Challenge katılım ilanı layoutu. Buton tıklanınca challenge_id action_value olarak gelir."""
         return [
             BlockBuilder.header(f"🚀 Yeni Challenge: {title}"),
             BlockBuilder.section(description),
-            BlockBuilder.section(fields=[
-                f"*Tema:* {theme}",
-                f"*Zorluk:* {difficulty}"
-            ]),
+            BlockBuilder.section(
+                fields=[f"*Tema:* {theme}", f"*Zorluk:* {difficulty}"]
+            ),
             BlockBuilder.divider(),
-            BlockBuilder.actions([
-                BlockBuilder.button("Katılmak İstiyorum! ✨", action_id, value=challenge_id, style="primary"),
-                BlockBuilder.button("Detaylar 🔍", f"details_{action_id}", value=challenge_id)
-            ])
+            BlockBuilder.actions(
+                [
+                    BlockBuilder.button(
+                        "Katılmak İstiyorum! ✨",
+                        action_id,
+                        value=challenge_id,
+                        style="primary",
+                    ),
+                    BlockBuilder.button(
+                        "Detaylar 🔍", f"details_{action_id}", value=challenge_id
+                    ),
+                ]
+            ),
         ]
+
     @staticmethod
     def summary_card(title: str, summary_text: str) -> List[Dict]:
         """Özet içeriğini gösteren layout."""
@@ -68,5 +91,88 @@ class Layouts:
             BlockBuilder.header(f"📚 {title}"),
             BlockBuilder.section(summary_text),
             BlockBuilder.divider(),
-            BlockBuilder.context(["🪄 *Groq AI tarafından asistanınız Cemil için hazırlanmıştır.*"])
+            BlockBuilder.context(
+                ["🪄 *Groq AI tarafından asistanınız Cemil için hazırlanmıştır.*"]
+            ),
         ]
+
+    @staticmethod
+    def feature_request_success(text_preview: str) -> List[Dict]:
+        """Başarılı özellik talebi gönderimi."""
+        # Metin çok uzunsa kırpıyoruz
+        preview = (
+            text_preview if len(text_preview) < 150 else text_preview[:147] + "..."
+        )
+        return [
+            BlockBuilder.header("✅ Fikrin Kaydedildi!"),
+            BlockBuilder.section(
+                f"Müthiş bir fikir! Ekibimiz ve yapay zeka algoritmamız tarafından değerlendirilecek.\n\n> _{preview}_"
+            ),
+        ]
+
+    @staticmethod
+    def feature_request_similar(existing_text: str, request_id: str) -> List[Dict]:
+        """Benzer özellik talebi bulunduğunda çıkan uyarı ve butonlar."""
+        return [
+            BlockBuilder.header("⚠️ Benzer Bir Fikrin Var"),
+            BlockBuilder.section(
+                f"Bu hafta daha önce bu fikre çok benzer bir talepte bulunmuşsun:\n\n> {existing_text}\n\n"
+                "Fikrinde değişiklik yapmak ister misin? (Haftalık hakkını korumuş olursun.)"
+            ),
+            BlockBuilder.actions(
+                [
+                    BlockBuilder.button(
+                        "Evet, düzenleyeyim ✏️",
+                        "feature_edit_yes",
+                        value=request_id,
+                        style="primary",
+                    ),
+                    BlockBuilder.button(
+                        "Hayır, yeni fikrim farklı 🆕",
+                        "feature_edit_no",
+                        value="ignore",
+                    ),
+                ]
+            ),
+        ]
+
+    @staticmethod
+    def feature_request_quota_exceeded(used: int, max_quota: int) -> List[Dict]:
+        """Haftalık submit kotası aşımında çıkan uyarı."""
+        return [
+            BlockBuilder.header("❌ Haftalık Hakkın Doldu"),
+            BlockBuilder.section(
+                f"Spam'i önlemek için sistemimiz bu hafta toplam *{max_quota}* fikir göndermene izin veriyor ve sen *{used}* hakkını da kullandın.\n"
+                "Lütfen yeni parlak fikirlerini haftaya bizimle paylaş! 💡"
+            ),
+        ]
+
+    @staticmethod
+    def feature_request_report(report_text: str) -> List[Dict]:
+        """Haftalık özellik kümeleme raporu layout'u (3000 karakter sınırına duyarlı)."""
+        blocks = [BlockBuilder.header("📊 Haftalık Özellik Talepleri Raporu")]
+
+        lines = report_text.split("\n")
+        current_chunk = ""
+        for line in lines:
+            if len(current_chunk) + len(line) + 1 > 2900:
+                if current_chunk:
+                    blocks.append(BlockBuilder.section(current_chunk.strip()))
+                current_chunk = line + "\n"
+                # Fallback: Eger tek satir limiti asiyorsa
+                while len(current_chunk) > 2900:
+                    blocks.append(BlockBuilder.section(current_chunk[:2900]))
+                    current_chunk = current_chunk[2900:]
+            else:
+                current_chunk += line + "\n"
+
+        if current_chunk.strip():
+            blocks.append(BlockBuilder.section(current_chunk.strip()))
+
+        blocks.append(BlockBuilder.divider())
+        blocks.append(
+            BlockBuilder.context(
+                ["🪄 *Groq AI ve HDBSCAN algoritması tarafından kümelenmiştir.*"]
+            )
+        )
+        return blocks
