@@ -413,11 +413,8 @@ def handle_interest_btn(ack: Ack, body: dict, client, action):
                                    text=f"Bu etkinlige zaten ilgi gosterdiniz.\n*{evt.name}*\n_{evt.id}_")
         return
 
-    cal_url = build_google_calendar_url(
-        title=evt.name, event_date=evt.date, event_time=evt.time,
-        duration_minutes=evt.duration_minutes, description=evt.description,
-        location=evt.link or "",
-    )
+    from ...utils.notifications import _calendar_url
+    cal_url = _calendar_url(evt)
     client.chat_postEphemeral(
         channel=channel_id, user=user_id,
         text=f"Ilgin kaydedildi!\n*{evt.name}*\n_{evt.id}_"

@@ -25,15 +25,27 @@ def _location_display(event: Event) -> str:
     return display.get(loc, str(loc))
 
 
+def _calendar_location(event: Event) -> str:
+    """Google Calendar icin mekan bilgisi: Slack kanaliysa kanal adi, degilse link."""
+    if event.location_type == LocationType.SLACK_CHANNEL and event.channel_id:
+        try:
+            resp = slack_client.bot_client.conversations_info(channel=event.channel_id)
+            if resp.get("ok"):
+                return f"Slack — #{resp['channel']['name']}"
+        except Exception:
+            pass
+        return f"Slack — {event.channel_id}"
+    return event.link or ""
+
+
 def _calendar_url(event: Event) -> str:
-    location = event.link or (_location_display(event))
     return build_google_calendar_url(
         title=event.name,
         event_date=event.date,
         event_time=event.time,
         duration_minutes=event.duration_minutes,
         description=event.description,
-        location=location,
+        location=_calendar_location(event),
     )
 
 

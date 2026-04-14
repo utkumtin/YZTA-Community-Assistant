@@ -401,11 +401,8 @@ def _handle_add_me(client, user_id: str, channel_id: str, event_id: str | None) 
         return
 
     # Basarili — ephemeral + DM
-    cal_url = build_google_calendar_url(
-        title=evt.name, event_date=evt.date, event_time=evt.time,
-        duration_minutes=evt.duration_minutes, description=evt.description,
-        location=evt.link or "",
-    )
+    from ...utils.notifications import _calendar_url, _calendar_location
+    cal_url = _calendar_url(evt)
     loc = _location_display(evt)
     text = (
         f"Ilgin kaydedildi!\n\n"

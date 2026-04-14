@@ -16,8 +16,8 @@ def build_google_calendar_url(
     """Google Calendar 'Add Event' URL'i olusturur.
 
     Tarih/saat bilgisi timezone-naive olarak gonderilir (Z suffix'i yok).
-    Google Calendar kullanicinin yerel timezone'unu uygular — boylece
-    kullanici 20:00 girdiyse takvimde 20:00 gorur.
+    Google Calendar kullanicinin yerel timezone'unu uygular.
+    Hatirlatma: 30 dakika once + 1 gun once popup.
     """
     start_dt = datetime.combine(event_date, event_time)
     end_dt = start_dt + timedelta(minutes=duration_minutes)
@@ -31,6 +31,7 @@ def build_google_calendar_url(
         "dates": dates,
         "details": description,
         "location": location,
+        "crm": "POPUP,30,POPUP,1440",
     }
     query = "&".join(f"{k}={quote(str(v))}" for k, v in params.items() if v)
     return f"https://calendar.google.com/calendar/render?{query}"
