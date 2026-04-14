@@ -447,10 +447,28 @@ def _handle_cancel(client, body: dict, user_id: str, channel_id: str) -> None:
                                    text="Iptal edilebilecek aktif etkinliginiz yok.")
         return
 
+    # Kullanici adlarini Slack API'den cek (cache)
+    _name_cache: dict[str, str] = {}
+    def _resolve_name(slack_id: str) -> str:
+        if slack_id in _name_cache:
+            return _name_cache[slack_id]
+        try:
+            resp = slack_client.bot_client.users_info(user=slack_id)
+            if resp.get("ok"):
+                profile = resp["user"].get("profile", {})
+                name = profile.get("display_name") or profile.get("real_name") or resp["user"].get("real_name", slack_id)
+                _name_cache[slack_id] = name
+                return name
+        except Exception:
+            pass
+        _name_cache[slack_id] = slack_id
+        return slack_id
+
     # Dropdown secenekleri olustur — tarihe gore sirali
     options = []
     for evt in sorted(events, key=lambda e: (e.date, e.time)):
-        label = f"{evt.date.strftime('%d %b')} — {evt.name} (@{evt.creator_slack_id})"
+        creator_name = _resolve_name(evt.creator_slack_id)
+        label = f"{evt.date.strftime('%d %b')} — {evt.name} ({creator_name})"
         # Slack option text max 75 karakter
         if len(label) > 75:
             label = label[:72] + "..."
