@@ -1,7 +1,7 @@
 """Google Calendar URL olusturucu — API gerektirmez, URL semasi kullanir."""
 from __future__ import annotations
 
-from datetime import date, time, datetime, timedelta, timezone
+from datetime import date, time, datetime, timedelta
 from urllib.parse import quote
 
 
@@ -13,11 +13,16 @@ def build_google_calendar_url(
     description: str = "",
     location: str = "",
 ) -> str:
-    """Google Calendar 'Add Event' URL'i olusturur."""
-    start_dt = datetime.combine(event_date, event_time, tzinfo=timezone.utc)
+    """Google Calendar 'Add Event' URL'i olusturur.
+
+    Tarih/saat bilgisi timezone-naive olarak gonderilir (Z suffix'i yok).
+    Google Calendar kullanicinin yerel timezone'unu uygular — boylece
+    kullanici 20:00 girdiyse takvimde 20:00 gorur.
+    """
+    start_dt = datetime.combine(event_date, event_time)
     end_dt = start_dt + timedelta(minutes=duration_minutes)
 
-    date_fmt = "%Y%m%dT%H%M%SZ"
+    date_fmt = "%Y%m%dT%H%M%S"
     dates = f"{start_dt.strftime(date_fmt)}/{end_dt.strftime(date_fmt)}"
 
     params = {
