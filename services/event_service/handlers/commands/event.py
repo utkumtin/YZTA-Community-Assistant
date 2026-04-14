@@ -174,8 +174,9 @@ def _build_event_form_blocks(initial: dict | None = None) -> list[dict]:
     # 9. Etkinlik Linki (opsiyonel — backend'de validate edilir)
     link_elem = {"type": "url_text_input", "action_id": "val",
                  "placeholder": {"type": "plain_text", "text": "Orn: https://zoom.us/j/123 veya Drive linki"}}
-    if iv.get("link"):
-        link_elem["initial_value"] = iv["link"]
+    link_val = iv.get("link")
+    if link_val and isinstance(link_val, str) and (link_val.startswith("http://") or link_val.startswith("https://")):
+        link_elem["initial_value"] = link_val
     blocks.append({"type": "input", "block_id": "event_link", "optional": True, "element": link_elem,
                     "label": {"type": "plain_text", "text": "Etkinlik Linki (harici platform ise zorunlu)"}})
 
