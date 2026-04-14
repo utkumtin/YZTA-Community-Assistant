@@ -795,7 +795,7 @@ Dropdown icerigi yetkiye gore degisir:
 - **Normal kullanici:** Sadece kendi olusturdugu APPROVED etkinlikler
 - **Admin:** Tum APPROVED etkinlikler
 
-Dropdown secenekleri tarihe gore siralanir. Her secenek etkinlik adi ve duzenleyeni icerir.
+Dropdown secenekleri tarihe gore siralanir. Her secenek etkinlik adi ve duzenleyenin gercek ismini icerir (Slack API'den `display_name` veya `real_name` cozumlenir).
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -806,9 +806,9 @@ Dropdown secenekleri tarihe gore siralanir. Her secenek etkinlik adi ve duzenley
 │  ┌─────────────────────────────────────────────┐ │
 │  │ Etkinlik secin...                       [v] │ │
 │  │                                             │ │
-│  │  · 15 Nis — RAG Sohbetleri (@ahmet)        │ │
-│  │  · 18 Nis — Python Workshop (@ayse)         │ │
-│  │  · 22 Nis — DevOps Sunumu (@can)            │ │
+│  │  · 15 Nis — RAG Sohbetleri (Ahmet Yilmaz)  │ │
+│  │  · 18 Nis — Python Workshop (Ayse Demir)    │ │
+│  │  · 22 Nis — DevOps Sunumu (Can Kaya)        │ │
 │  │                                             │ │
 │  └─────────────────────────────────────────────┘ │
 │                                                  │
