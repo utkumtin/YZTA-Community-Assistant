@@ -204,7 +204,7 @@ Onumuzdeki 1 ay icinde ilgi gosterilebilecek etkinlik yoksa modal acilmaz:
 
 **`/event add_me` — basarili (ephemeral):**
 
-Form gonderildikten sonra gelen onay mesaji:
+Form gonderildikten sonra, komutun yazildigi kanalda gelen onay mesaji. Modal view submission'larinda `body.channel_id` bulunmadigi icin, kanal bilgisi modal acilirken `private_metadata` uzerinden tasinir ve submission handler'inda kullanilir.
 
 ```
 ┌─ Event Bot (sadece sana gorunur) ──────────────────┐
@@ -216,14 +216,14 @@ Form gonderildikten sonra gelen onay mesaji:
 │                                                     │
 │  Etkinlik gunu hatirlatma e-postasi alacaksin.       │
 │                                                     │
-│  [📅 Google Takvime Ekle]                            │
-│                                                     │
 │  _#EVT-a1b2_                                        │
 │                                                     │
 └─────────────────────────────────────────────────────┘
 ```
 
 **`/event add_me` — basarili (DM):**
+
+Ayrica kullaniciya kisisel DM olarak da ilgili etkinligin tum detaylari ve **Google Takvime Ekle** butonu gonderilir.
 
 ```
 ┌─ Event Bot → @ahmet (DM) ─────────────────────────┐
