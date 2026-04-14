@@ -29,7 +29,7 @@ Tum komutlar `#serbest-kursu` kanalinda calisir.
 | `/event my_list` | Ephemeral | Kullanicinin kendi olusturdugu etkinlikleri listele |
 | `/event history` | Ephemeral | Gecmis etkinlikleri listele |
 | `/event add_me <id>` | Ephemeral | Etkinlige ilgi goster (kullanici basina 1 kez) |
-| `/event update <id>` | Modal acilir | Etkinlik bilgilerini guncelle (sahip + admin) |
+| `/event update` | Modal acilir (2 adim) | Etkinlik bilgilerini guncelle (sahip: kendi eventleri, admin: tum eventler) |
 | `/event cancel` | Modal + duyuru | Etkinligi iptal et (sahip: kendi eventleri, admin: tum eventler) |
 | `/event help` | Ephemeral | Komut listesini goster |
 
@@ -136,8 +136,9 @@ Tum komutlar `#serbest-kursu` kanalinda calisir.
 │  ilgi gosterilebilir. Butona tiklama ile ayni isi    │
 │  gorur.                                              │
 │                                                     │
-│  *`/event update <id>`*                              │
-│  Etkinlik bilgilerini guncelle (sahip + admin).      │
+│  *`/event update`*                                   │
+│  Guncelleme formu acar. Sahip kendi eventlerini,      │
+│  admin tum aktif eventleri gorup guncelleyebilir.    │
 │                                                     │
 │  *`/event cancel`*                                   │
 │  Iptal formu acar. Sahip kendi eventlerini,           │
@@ -673,27 +674,23 @@ Kullanicinin Google hesabina yonlendirir, tek tikla takvime ekler. API key veya 
 
 ---
 
-## 6. Guncelleme Mekanizmasi (`/event update <id>`)
+## 6. Guncelleme Mekanizmasi (`/event update`)
 
 ### 6.1 Yetki
 
-- **Etkinlik sahibi:** Sadece kendi etkinligini guncelleyebilir
-- **Admin:** Herhangi bir etkinligi guncelleyebilir
+- **Etkinlik sahibi:** Sadece kendi etkinliklerini gorur ve guncelleyebilir
+- **Admin:** Tum aktif etkinlikleri gorur ve guncelleyebilir
 
 ### 6.2 Guncellenebilir Durumlar
 
 Sadece `APPROVED` statusundeki etkinlikler guncellenebilir. `PENDING`, `REJECTED`, `CANCELLED`, `COMPLETED` statusundeki etkinlikler guncellenmez.
 
-### 6.3 Guncelleme Formu
+### 6.3 Guncelleme Akisi (Iki Adimli Modal)
 
-Ayni event formu (Bolum 3) acilir. Tum alanlar `initial_value` / `initial_date` / `initial_time` / `initial_option` / `initial_channel` ile mevcut degerlerle dolu gelir. Kullanici sadece degistirmek istedigi alani duzenler.
-
-### 6.4 Guncelleme Akisi
-
-1. `/event update <id>` komutu girilir
-2. Yetki kontrolu yapilir (sahip veya admin)
-3. Status kontrolu yapilir (sadece APPROVED)
-4. Modal acilir, mevcut degerler dolu olarak gelir
+1. `/event update` komutu girilir (ID parametresi yok)
+2. **1. Modal acilir** — dropdown'da kullanicinin yetkisine gore aktif etkinlikler listelenir
+3. Kullanici dropdown'dan guncellenecek etkinligi secer ve **Devam** butonuna basar
+4. **2. Modal acilir** — event formu (Bolum 3) mevcut degerlerle dolu gelir
 5. Kullanici degisiklikleri yapar ve gonderir
 6. DB guncellenir (direkt, tekrar onay gerekmez)
 7. Admin'e bildirim gonderilir:
@@ -702,7 +699,48 @@ Ayni event formu (Bolum 3) acilir. Tum alanlar `initial_value` / `initial_date` 
 8. Duyuru kanallarina (5.1) "Etkinlik guncellendi" bildirisi gonderilir
 9. "Katilacagim" diyenlere e-posta: guncellenmis etkinlik detaylari
 
-### 6.5 Oncesi/Sonrasi Bildirim Formati
+### 6.4 Etkinlik Secim Formu (1. Modal)
+
+Dropdown icerigi yetkiye gore degisir:
+- **Normal kullanici:** Sadece kendi olusturdugu APPROVED etkinlikler
+- **Admin:** Tum APPROVED etkinlikler
+
+Dropdown secenekleri tarihe gore siralanir. Her secenek etkinlik adi ve duzenleyenin gercek ismini icerir (Slack API'den cozumlenir).
+
+```
+┌─────────────────────────────────────────────────┐
+│          Etkinlik Guncelle — Secim          [X]  │
+├─────────────────────────────────────────────────┤
+│                                                  │
+│  Guncellenecek Etkinlik *                        │
+│  ┌─────────────────────────────────────────────┐ │
+│  │ Etkinlik secin...                       [v] │ │
+│  │                                             │ │
+│  │  · 15 Nis — RAG Sohbetleri (Ahmet Yilmaz)  │ │
+│  │  · 18 Nis — Python Workshop (Ayse Demir)    │ │
+│  │  · 22 Nis — DevOps Sunumu (Can Kaya)        │ │
+│  │                                             │ │
+│  └─────────────────────────────────────────────┘ │
+│                                                  │
+│                       [Iptal]  [Devam]            │
+└─────────────────────────────────────────────────┘
+```
+
+**Etkinlik yoksa (ephemeral):**
+
+```
+┌─ Event Bot (sadece sana gorunur) ──────────────────┐
+│                                                     │
+│  📭 Guncellenebilecek aktif etkinliginiz yok.        │
+│                                                     │
+└─────────────────────────────────────────────────────┘
+```
+
+### 6.5 Guncelleme Formu (2. Modal)
+
+Secilen etkinligin mevcut bilgileriyle dolu gelen event formu (Bolum 3). Tum alanlar `initial_value` / `initial_date` / `initial_time` / `initial_option` / `initial_channel` ile dolu gelir. Kullanici sadece degistirmek istedigi alani duzenler.
+
+### 6.6 Oncesi/Sonrasi Bildirim Formati
 
 Admin'e giden bildirimde degisen alanlar vurgulanir. Sadece degisen alanlar listelenir, degismeyenler gosterilmez.
 
