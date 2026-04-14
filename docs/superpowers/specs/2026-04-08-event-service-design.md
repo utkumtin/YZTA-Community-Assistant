@@ -30,7 +30,7 @@ Tum komutlar `#serbest-kursu` kanalinda calisir.
 | `/event history` | Ephemeral | Gecmis etkinlikleri listele |
 | `/event add_me <id>` | Ephemeral | Etkinlige ilgi goster (kullanici basina 1 kez) |
 | `/event update <id>` | Modal acilir | Etkinlik bilgilerini guncelle (sahip + admin) |
-| `/event cancel <id>` | Ephemeral + duyuru | Etkinligi iptal et (sahip + admin) |
+| `/event cancel` | Modal + duyuru | Etkinligi iptal et (sahip: kendi eventleri, admin: tum eventler) |
 | `/event help` | Ephemeral | Komut listesini goster |
 
 ### 2.1 Komut Ciktilari
@@ -139,8 +139,9 @@ Tum komutlar `#serbest-kursu` kanalinda calisir.
 │  *`/event update <id>`*                              │
 │  Etkinlik bilgilerini guncelle (sahip + admin).      │
 │                                                     │
-│  *`/event cancel <id>`*                              │
-│  Etkinligi iptal et (sahip + admin).                 │
+│  *`/event cancel`*                                   │
+│  Iptal formu acar. Sahip kendi eventlerini,           │
+│  admin tum aktif eventleri gorup iptal edebilir.     │
 │                                                     │
 │  *`/event help`*                                     │
 │  Bu yardim mesajini goster.                          │
@@ -774,17 +775,57 @@ Admin'e giden bildirimde degisen alanlar vurgulanir. Sadece degisen alanlar list
 
 ### 7.1 Yetki (Iptal)
 
-- **Etkinlik sahibi:** Sadece kendi etkinligini iptal edebilir
-- **Admin:** Herhangi bir etkinligi her zaman iptal edebilir
+- **Etkinlik sahibi:** Sadece kendi etkinliklerini gorur ve iptal edebilir
+- **Admin:** Tum aktif etkinlikleri gorur ve iptal edebilir
 
 ### 7.2 Iptal Akisi
 
-1. `/event cancel <id>` komutu girilir
-2. Yetki kontrolu yapilir (sahip veya admin)
-3. DB status → `CANCELLED`
-4. Duyuru kanallarina (3.3) iptal bildirisi
-5. Etkinlik sahibine Slack DM + e-posta (admin iptal ettiyse)
-6. "Katilacagim" diyenlere e-posta: "Etkinlik iptal edildi"
+1. `/event cancel` komutu girilir (ID parametresi yok)
+2. Modal acilir — dropdown'da kullanicinin yetkisine gore aktif etkinlikler listelenir
+3. Kullanici dropdown'dan iptal edilecek etkinligi secer ve onaylar
+4. DB status → `CANCELLED`
+5. Duyuru kanallarina (3.3) iptal bildirisi
+6. Etkinlik sahibine Slack DM + e-posta (admin iptal ettiyse)
+7. "Katilacagim" diyenlere e-posta: "Etkinlik iptal edildi"
+
+### 7.3 Iptal Formu (Modal)
+
+Dropdown icerigi yetkiye gore degisir:
+- **Normal kullanici:** Sadece kendi olusturdugu APPROVED etkinlikler
+- **Admin:** Tum APPROVED etkinlikler
+
+Dropdown secenekleri tarihe gore siralanir. Her secenek etkinlik adi ve duzenleyeni icerir.
+
+```
+┌─────────────────────────────────────────────────┐
+│            Etkinlik Iptal Et                [X]  │
+├─────────────────────────────────────────────────┤
+│                                                  │
+│  Iptal Edilecek Etkinlik *                       │
+│  ┌─────────────────────────────────────────────┐ │
+│  │ Etkinlik secin...                       [v] │ │
+│  │                                             │ │
+│  │  · 15 Nis — RAG Sohbetleri (@ahmet)        │ │
+│  │  · 18 Nis — Python Workshop (@ayse)         │ │
+│  │  · 22 Nis — DevOps Sunumu (@can)            │ │
+│  │                                             │ │
+│  └─────────────────────────────────────────────┘ │
+│                                                  │
+│                    [Iptal]  [Etkinligi Iptal Et]  │
+└─────────────────────────────────────────────────┘
+```
+
+**Etkinlik yoksa (ephemeral):**
+
+```
+┌─ Event Bot (sadece sana gorunur) ──────────────────┐
+│                                                     │
+│  📭 Iptal edilebilecek aktif etkinliginiz yok.       │
+│                                                     │
+└─────────────────────────────────────────────────────┘
+```
+
+### 7.4 Iptal Sonrasi Bildirimler
 
 **Duyuru kanallarina giden iptal bildirisi:**
 
