@@ -57,8 +57,7 @@ def handle_event_command(ack: Ack, body: dict, client, command):
     elif cmd == "history":
         _handle_history(client, user_id, channel_id)
     elif cmd == "add_me":
-        event_id = args[1] if len(args) > 1 else None
-        _handle_add_me(client, user_id, channel_id, event_id)
+        _handle_add_me(client, body, user_id, channel_id)
     elif cmd == "update":
         _handle_update(client, body, user_id, channel_id)
     elif cmd == "cancel":
@@ -359,64 +358,100 @@ def _handle_history(client, user_id: str, channel_id: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# /event add_me <id>
+# /event add_me — Modal ile secim
 # ---------------------------------------------------------------------------
 
-def _handle_add_me(client, user_id: str, channel_id: str, event_id: str | None) -> None:
-    if not event_id:
-        client.chat_postEphemeral(channel=channel_id, user=user_id,
-                                   text="Kullanim: `/event add_me <id>`")
-        return
+INTEREST_FORM_DAYS_AHEAD = 30
 
-    async def _add():
-        async with db.session() as session:
+
+def _handle_add_me(client, body: dict, user_id: str, channel_id: str) -> None:
+    """Ilgi gosterme modal'ini acar. Dropdown'da onumuzdeki 1 ay icinde
+    kullanicinin henuz ilgi gostermedigi APPROVED etkinlikler listelenir.
+    """
+    async def _fetch_events():
+        async with db.session(read_only=True) as session:
             repo = EventRepository(session)
-            evt = await repo.get(event_id)
-            if not evt or evt.status != EventStatus.APPROVED:
-                return None, "not_found"
-            interest_repo = EventInterestRepository(session)
-            existing = await interest_repo.find_by_event_and_user(event_id, user_id)
-            if existing:
-                return evt, "already"
-            await interest_repo.create(EventInterest(event_id=event_id, slack_id=user_id))
-            return evt, "ok"
+            return await repo.list_approved_for_interest_form(user_id, INTEREST_FORM_DAYS_AHEAD)
 
     try:
-        evt, status = _run_async(_add())
+        events = _run_async(_fetch_events())
     except Exception as e:
-        _logger.error("[CMD] add_me failed: %s", e)
-        client.chat_postEphemeral(channel=channel_id, user=user_id, text="Islem basarisiz, tekrar deneyin.")
-        return
-
-    if status == "not_found":
+        _logger.error("[CMD] add_me fetch failed: %s", e)
         client.chat_postEphemeral(channel=channel_id, user=user_id,
-                                   text="Etkinlik bulunamadi veya ilgi gosterilemez durumda.\n"
-                                        "Aktif etkinlikleri gormek icin `/event list` komutunu kullanin.")
+                                   text="Etkinlikler yuklenemedi, tekrar deneyin.")
         return
 
-    if status == "already":
-        client.chat_postEphemeral(channel=channel_id, user=user_id,
-                                   text=f"Bu etkinlige zaten ilgi gosterdiniz.\n*{evt.name}*\n_{evt.id}_")
+    if not events:
+        client.chat_postEphemeral(
+            channel=channel_id, user=user_id,
+            text=(
+                "Onumuzdeki 1 ay icinde ilgi gosterebileceginiz etkinlik yok.\n"
+                "Tum etkinlikleri gormek icin `/event list` komutunu kullanin."
+            ),
+        )
         return
 
-    # Basarili — ephemeral + DM
-    from ...utils.notifications import _calendar_url, _calendar_location
-    cal_url = _calendar_url(evt)
-    loc = _location_display(evt)
-    text = (
-        f"Ilgin kaydedildi!\n\n"
-        f"*{evt.name}*\n"
-        f"{evt.date.strftime('%d %B %Y')} · {evt.time.strftime('%H:%M')} · {loc}\n\n"
-        f"Etkinlik gunu hatirlatma e-postasi alacaksin.\n_{evt.id}_"
+    # Kullanici adlarini Slack API'den cek (cache)
+    _name_cache: dict[str, str] = {}
+    def _resolve_name(slack_id: str) -> str:
+        if slack_id in _name_cache:
+            return _name_cache[slack_id]
+        try:
+            resp = slack_client.bot_client.users_info(user=slack_id)
+            if resp.get("ok"):
+                profile = resp["user"].get("profile", {})
+                name = profile.get("display_name") or profile.get("real_name") or resp["user"].get("real_name", slack_id)
+                _name_cache[slack_id] = name
+                return name
+        except Exception:
+            pass
+        _name_cache[slack_id] = slack_id
+        return slack_id
+
+    # Dropdown secenekleri olustur — tarihe gore sirali
+    options = []
+    for evt in sorted(events, key=lambda e: (e.date, e.time)):
+        creator_name = _resolve_name(evt.creator_slack_id)
+        label = f"{evt.date.strftime('%d %b')} — {evt.name} ({creator_name})"
+        if len(label) > 75:
+            label = label[:72] + "..."
+        options.append({
+            "text": {"type": "plain_text", "text": label},
+            "value": evt.id,
+        })
+
+    client.views_open(
+        trigger_id=body.get("trigger_id"),
+        view={
+            "type": "modal",
+            "callback_id": "event_add_me_modal",
+            "title": {"type": "plain_text", "text": "Etkinlige Ilgi Goster"},
+            "submit": {"type": "plain_text", "text": "Ilgi Goster"},
+            "close": {"type": "plain_text", "text": "Iptal"},
+            "blocks": [
+                {
+                    "type": "input",
+                    "block_id": "add_me_event_select",
+                    "element": {
+                        "type": "static_select",
+                        "action_id": "val",
+                        "placeholder": {"type": "plain_text", "text": "Etkinlik secin..."},
+                        "options": options,
+                    },
+                    "label": {"type": "plain_text", "text": "Ilgi Gosterilecek Etkinlik"},
+                },
+                {
+                    "type": "context",
+                    "elements": [
+                        {
+                            "type": "mrkdwn",
+                            "text": "_Onumuzdeki 1 ay icinde gerceklesecek ve henuz ilgi gostermediginiz etkinlikler._",
+                        }
+                    ],
+                },
+            ],
+        },
     )
-    client.chat_postEphemeral(channel=channel_id, user=user_id, text=text)
-
-    # DM
-    from ...utils.notifications import send_dm
-    dm_builder = MessageBuilder()
-    dm_builder.add_text(text)
-    dm_builder.add_button("Google Takvime Ekle", "event_calendar_btn", value=evt.id, url=cal_url)
-    send_dm(user_id, f"Ilgin kaydedildi: {evt.name}", dm_builder.build())
 
 
 # ---------------------------------------------------------------------------
@@ -600,8 +635,9 @@ def _handle_help(client, user_id: str, channel_id: str) -> None:
         "Kendi olusturdugum etkinlikleri listele.\n\n"
         "*`/event history`*\n"
         "Gecmis etkinlikleri goruntule.\n\n"
-        "*`/event add_me <id>`*\n"
-        "Etkinlige ilgi goster. Her etkinlige 1 kez ilgi gosterilebilir. Butona tiklama ile ayni isi gorur.\n\n"
+        "*`/event add_me`*\n"
+        "Ilgi formu acar. Onumuzdeki 1 ay icinde gerceklesecek ve henuz ilgi gostermediginiz "
+        "etkinlikler listelenir. Her etkinlige 1 kez ilgi gosterilebilir.\n\n"
         "*`/event update`*\n"
         "Guncelleme formu acar. Sahip kendi eventlerini, admin tum aktif eventleri gorup guncelleyebilir.\n\n"
         "*`/event cancel`*\n"

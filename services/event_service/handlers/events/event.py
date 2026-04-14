@@ -601,3 +601,68 @@ def handle_cancel_modal(ack: Ack, body: dict, client, view):
         _logger.warning("[EVT] Cancel email notifications failed: %s", e)
 
     _logger.info("[EVT] Event cancelled via modal: %s by %s", event_id, user_id)
+
+
+# ---------------------------------------------------------------------------
+# Ilgi gosterme modal submission
+# ---------------------------------------------------------------------------
+
+@app.view("event_add_me_modal")
+def handle_add_me_modal(ack: Ack, body: dict, client, view):
+    """/event add_me formu gonderildiginde calisir."""
+    ack()
+
+    user_id = body["user"]["id"]
+    values = view["state"]["values"]
+    event_id = values.get("add_me_event_select", {}).get("val", {}).get("selected_option", {}).get("value")
+
+    if not event_id:
+        return
+
+    async def _add():
+        async with db.session() as session:
+            repo = EventRepository(session)
+            evt = await repo.get(event_id)
+            if not evt or evt.status != EventStatus.APPROVED:
+                return None, "not_found"
+            interest_repo = EventInterestRepository(session)
+            existing = await interest_repo.find_by_event_and_user(event_id, user_id)
+            if existing:
+                return evt, "already"
+            await interest_repo.create(EventInterest(event_id=event_id, slack_id=user_id))
+            return evt, "ok"
+
+    try:
+        evt, status = _run_async(_add())
+    except Exception as e:
+        _logger.error("[EVT] add_me modal failed: %s", e)
+        send_dm(user_id, "Ilgi kaydedilemedi, tekrar deneyin.")
+        return
+
+    if status == "not_found":
+        send_dm(user_id, "Etkinlik bulunamadi veya ilgi gosterilemez durumda.")
+        return
+
+    if status == "already":
+        send_dm(
+            user_id,
+            f"Bu etkinlige zaten ilgi gostermissiniz.\n*{evt.name}*\n_{evt.id}_",
+        )
+        return
+
+    # Basarili — DM gonder (ephemeral modal submission'da channel context yok)
+    from ...utils.notifications import _calendar_url
+    cal_url = _calendar_url(evt)
+    loc = _location_display(evt)
+
+    dm_builder = MessageBuilder()
+    dm_builder.add_text(
+        f"Ilgin kaydedildi!\n\n"
+        f"*{evt.name}*\n"
+        f"{evt.date.strftime('%d %B %Y')} · {evt.time.strftime('%H:%M')} · {loc}\n\n"
+        f"Etkinlik gunu hatirlatma e-postasi alacaksin.\n_{evt.id}_"
+    )
+    dm_builder.add_button("Google Takvime Ekle", "event_calendar_btn", value=evt.id, url=cal_url)
+    send_dm(user_id, f"Ilgin kaydedildi: {evt.name}", dm_builder.build())
+
+    _logger.info("[EVT] Interest added via modal: event=%s user=%s", event_id, user_id)

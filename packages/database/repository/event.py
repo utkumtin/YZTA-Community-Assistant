@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import select, func
 
 from packages.database.models.event import Event, EventInterest, EventStatus
@@ -88,6 +88,32 @@ class EventRepository(BaseRepository[Event]):
         result = await self.session.execute(
             select(Event)
             .where(Event.status == EventStatus.APPROVED, Event.date < now_date)
+        )
+        return list(result.scalars().all())
+
+    async def list_approved_for_interest_form(self, slack_id: str, days_ahead: int = 30) -> list[Event]:
+        """
+        /event add_me formu icin: onumuzdeki N gun icindeki APPROVED etkinlikleri
+        doner, ancak kullanicinin daha once ilgi gostermedigi etkinlikleri filtreler.
+        """
+        today = datetime.now(timezone.utc).date()
+        end_date = today + timedelta(days=days_ahead)
+
+        # Kullanicinin ilgi gosterdigi event ID'leri (subquery)
+        interested_subq = (
+            select(EventInterest.event_id)
+            .where(EventInterest.slack_id == slack_id)
+        )
+
+        result = await self.session.execute(
+            select(Event)
+            .where(
+                Event.status == EventStatus.APPROVED,
+                Event.date >= today,
+                Event.date <= end_date,
+                Event.id.not_in(interested_subq),
+            )
+            .order_by(Event.date, Event.time)
         )
         return list(result.scalars().all())
 
