@@ -122,7 +122,81 @@ def handle_create_modal(ack: Ack, body: dict, client, view):
 
 
 # ---------------------------------------------------------------------------
-# event_update_modal
+# event_update_select_modal (1. adim — etkinlik secimi)
+# ---------------------------------------------------------------------------
+
+@app.view("event_update_select_modal")
+def handle_update_select_modal(ack: Ack, body: dict, client, view):
+    """Guncelleme icin etkinlik secildiginde 2. modal'i (guncelleme formu) acar."""
+    ack()
+
+    user_id = body["user"]["id"]
+    values = view["state"]["values"]
+    event_id = values.get("update_event_select", {}).get("val", {}).get("selected_option", {}).get("value")
+
+    if not event_id:
+        return
+
+    is_admin = user_id in settings.slack_admins
+
+    async def _fetch():
+        async with db.session(read_only=True) as session:
+            repo = EventRepository(session)
+            return await repo.get(event_id)
+
+    try:
+        evt = _run_async(_fetch())
+    except Exception as e:
+        _logger.error("[EVT] update select fetch failed: %s", e)
+        return
+
+    if not evt or evt.status != EventStatus.APPROVED:
+        return
+    if evt.creator_slack_id != user_id and not is_admin:
+        return
+
+    # Mevcut degerlerle 2. modal'i ac
+    from ...handlers.commands.event import _build_event_form_blocks
+    loc_val = evt.location_type.value if isinstance(evt.location_type, LocationType) else evt.location_type
+    initial = {
+        "name": evt.name,
+        "topic": evt.topic,
+        "description": evt.description,
+        "date": evt.date.isoformat(),
+        "time": evt.time.strftime("%H:%M"),
+        "duration": str(evt.duration_minutes),
+        "location_type": loc_val,
+        "channel_id": evt.channel_id,
+        "link": evt.link,
+        "yzta_request": evt.yzta_request,
+    }
+    blocks = _build_event_form_blocks(initial)
+
+    # Slack views_open yerine views_push kullanarak 2. modal'i acariz
+    # Ancak views_push sadece mevcut modal acikken calisir — view submission sonrasi
+    # modal kapanir, bu yuzden response_action ile update yapamayiz.
+    # Cozum: views_open ile yeni modal acariz.
+    try:
+        # trigger_id view submission'da body'den gelir
+        trigger_id = body.get("trigger_id")
+        client.views_open(
+            trigger_id=trigger_id,
+            view={
+                "type": "modal",
+                "callback_id": "event_update_modal",
+                "private_metadata": json.dumps({"event_id": event_id}),
+                "title": {"type": "plain_text", "text": "Etkinlik Guncelle"},
+                "submit": {"type": "plain_text", "text": "Guncelle"},
+                "close": {"type": "plain_text", "text": "Iptal"},
+                "blocks": blocks,
+            },
+        )
+    except Exception as e:
+        _logger.error("[EVT] Could not open update form modal: %s", e)
+
+
+# ---------------------------------------------------------------------------
+# event_update_modal (2. adim — guncelleme formu)
 # ---------------------------------------------------------------------------
 
 @app.view("event_update_modal")

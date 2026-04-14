@@ -60,8 +60,7 @@ def handle_event_command(ack: Ack, body: dict, client, command):
         event_id = args[1] if len(args) > 1 else None
         _handle_add_me(client, user_id, channel_id, event_id)
     elif cmd == "update":
-        event_id = args[1] if len(args) > 1 else None
-        _handle_update(client, body, user_id, channel_id, event_id)
+        _handle_update(client, body, user_id, channel_id)
     elif cmd == "cancel":
         _handle_cancel(client, body, user_id, channel_id)
     elif cmd == "help":
@@ -503,67 +502,83 @@ def _handle_cancel(client, body: dict, user_id: str, channel_id: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# /event update <id>
+# /event update — 1. adim: etkinlik secim modal'i
 # ---------------------------------------------------------------------------
 
-def _handle_update(client, body: dict, user_id: str, channel_id: str, event_id: str | None) -> None:
-    if not event_id:
-        client.chat_postEphemeral(channel=channel_id, user=user_id,
-                                   text="Kullanim: `/event update <id>`")
-        return
-
+def _handle_update(client, body: dict, user_id: str, channel_id: str) -> None:
+    """Guncelleme icin etkinlik secim modal'ini acar (1. adim)."""
     is_admin = user_id in settings.slack_admins
 
-    async def _fetch():
+    async def _fetch_events():
         async with db.session(read_only=True) as session:
             repo = EventRepository(session)
-            return await repo.get(event_id)
+            if is_admin:
+                return await repo.list_by_status(EventStatus.APPROVED)
+            else:
+                return await repo.list_by_creator_and_status(user_id, EventStatus.APPROVED)
 
     try:
-        evt = _run_async(_fetch())
+        events = _run_async(_fetch_events())
     except Exception as e:
         _logger.error("[CMD] update fetch failed: %s", e)
-        client.chat_postEphemeral(channel=channel_id, user=user_id, text="Etkinlik yuklenemedi.")
+        client.chat_postEphemeral(channel=channel_id, user=user_id, text="Etkinlikler yuklenemedi.")
         return
 
-    if not evt:
-        client.chat_postEphemeral(channel=channel_id, user=user_id, text="Etkinlik bulunamadi.")
-        return
-    if evt.status != EventStatus.APPROVED:
+    if not events:
         client.chat_postEphemeral(channel=channel_id, user=user_id,
-                                   text="Sadece onaylanmis etkinlikler guncellenebilir.")
-        return
-    if evt.creator_slack_id != user_id and not is_admin:
-        client.chat_postEphemeral(channel=channel_id, user=user_id,
-                                   text="Bu etkinligi guncelleme yetkiniz yok.")
+                                   text="Guncellenebilecek aktif etkinliginiz yok.")
         return
 
-    # Mevcut degerlerle modal ac
-    initial = {
-        "name": evt.name,
-        "topic": evt.topic,
-        "description": evt.description,
-        "date": evt.date.isoformat(),
-        "time": evt.time.strftime("%H:%M"),
-        "duration": str(evt.duration_minutes),
-        "location_type": evt.location_type,
-        "channel_id": evt.channel_id,
-        "link": evt.link,
-        "yzta_request": evt.yzta_request,
-    }
-    blocks = _build_event_form_blocks(initial)
+    # Kullanici adlarini Slack API'den cek (cache)
+    _name_cache: dict[str, str] = {}
+    def _resolve_name(slack_id: str) -> str:
+        if slack_id in _name_cache:
+            return _name_cache[slack_id]
+        try:
+            resp = slack_client.bot_client.users_info(user=slack_id)
+            if resp.get("ok"):
+                profile = resp["user"].get("profile", {})
+                name = profile.get("display_name") or profile.get("real_name") or resp["user"].get("real_name", slack_id)
+                _name_cache[slack_id] = name
+                return name
+        except Exception:
+            pass
+        _name_cache[slack_id] = slack_id
+        return slack_id
 
-    import json
+    # Dropdown secenekleri olustur — tarihe gore sirali
+    options = []
+    for evt in sorted(events, key=lambda e: (e.date, e.time)):
+        creator_name = _resolve_name(evt.creator_slack_id)
+        label = f"{evt.date.strftime('%d %b')} — {evt.name} ({creator_name})"
+        if len(label) > 75:
+            label = label[:72] + "..."
+        options.append({
+            "text": {"type": "plain_text", "text": label},
+            "value": evt.id,
+        })
+
     client.views_open(
         trigger_id=body.get("trigger_id"),
         view={
             "type": "modal",
-            "callback_id": "event_update_modal",
-            "private_metadata": json.dumps({"event_id": event_id}),
+            "callback_id": "event_update_select_modal",
             "title": {"type": "plain_text", "text": "Etkinlik Guncelle"},
-            "submit": {"type": "plain_text", "text": "Guncelle"},
+            "submit": {"type": "plain_text", "text": "Devam"},
             "close": {"type": "plain_text", "text": "Iptal"},
-            "blocks": blocks,
+            "blocks": [
+                {
+                    "type": "input",
+                    "block_id": "update_event_select",
+                    "element": {
+                        "type": "static_select",
+                        "action_id": "val",
+                        "placeholder": {"type": "plain_text", "text": "Etkinlik secin..."},
+                        "options": options,
+                    },
+                    "label": {"type": "plain_text", "text": "Guncellenecek Etkinlik"},
+                },
+            ],
         },
     )
 
@@ -586,8 +601,8 @@ def _handle_help(client, user_id: str, channel_id: str) -> None:
         "Gecmis etkinlikleri goruntule.\n\n"
         "*`/event add_me <id>`*\n"
         "Etkinlige ilgi goster. Her etkinlige 1 kez ilgi gosterilebilir. Butona tiklama ile ayni isi gorur.\n\n"
-        "*`/event update <id>`*\n"
-        "Etkinlik bilgilerini guncelle (sahip + admin).\n\n"
+        "*`/event update`*\n"
+        "Guncelleme formu acar. Sahip kendi eventlerini, admin tum aktif eventleri gorup guncelleyebilir.\n\n"
         "*`/event cancel`*\n"
         "Iptal formu acar. Sahip kendi eventlerini, admin tum aktif eventleri gorup iptal edebilir.\n\n"
         "*`/event help`*\n"
