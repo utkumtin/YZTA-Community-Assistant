@@ -785,8 +785,9 @@ Admin'e giden bildirimde degisen alanlar vurgulanir. Sadece degisen alanlar list
 3. Kullanici dropdown'dan iptal edilecek etkinligi secer ve onaylar
 4. DB status → `CANCELLED`
 5. Duyuru kanallarina (3.3) iptal bildirisi
-6. Etkinlik sahibine Slack DM + e-posta (admin iptal ettiyse)
-7. "Katilacagim" diyenlere e-posta: "Etkinlik iptal edildi"
+6. Admin kanalina (`slack_admin_channel`) iptal bildirimi (etkinlik adi, tarih, duzenleyen, iptal eden)
+7. Etkinlik sahibine Slack DM + e-posta (admin iptal ettiyse)
+8. "Katilacagim" diyenlere e-posta: "Etkinlik iptal edildi"
 
 ### 7.3 Iptal Formu (Modal)
 
