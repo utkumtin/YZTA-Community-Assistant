@@ -28,7 +28,7 @@ Tum komutlar `#serbest-kursu` kanalinda calisir.
 | `/event list` | Ephemeral | Bu ayki etkinlikleri listele (ID, ad, sahip, link, tarih/saat) |
 | `/event my_list` | Ephemeral | Kullanicinin kendi olusturdugu etkinlikleri listele |
 | `/event history` | Ephemeral | Gecmis etkinlikleri listele |
-| `/event add_me <id>` | Ephemeral | Etkinlige ilgi goster (kullanici basina 1 kez) |
+| `/event add_me` | Modal acilir | Etkinlige ilgi goster — form ile secim (kullanici basina 1 kez) |
 | `/event update` | Modal acilir (2 adim) | Etkinlik bilgilerini guncelle (sahip: kendi eventleri, admin: tum eventler) |
 | `/event cancel` | Modal + duyuru | Etkinligi iptal et (sahip: kendi eventleri, admin: tum eventler) |
 | `/event help` | Ephemeral | Komut listesini goster |
@@ -131,10 +131,10 @@ Tum komutlar `#serbest-kursu` kanalinda calisir.
 │  *`/event history`*                                  │
 │  Gecmis etkinlikleri goruntule.                      │
 │                                                     │
-│  *`/event add_me <id>`*                              │
-│  Etkinlige ilgi goster. Her etkinlige 1 kez          │
-│  ilgi gosterilebilir. Butona tiklama ile ayni isi    │
-│  gorur.                                              │
+│  *`/event add_me`*                                   │
+│  Ilgi formu acar. Onumuzdeki 1 ay icindeki henuz    │
+│  ilgi gostermediginiz etkinlikler listelenir.        │
+│  Her etkinlige 1 kez ilgi gosterilebilir.            │
 │                                                     │
 │  *`/event update`*                                   │
 │  Guncelleme formu acar. Sahip kendi eventlerini,      │
@@ -153,7 +153,58 @@ Tum komutlar `#serbest-kursu` kanalinda calisir.
 └─────────────────────────────────────────────────────┘
 ```
 
-**`/event add_me <id>` — basarili (ephemeral):**
+**`/event add_me` — secim formu (modal):**
+
+Dropdown icerigi:
+- **Tarih filtresi:** Bugunden itibaren 1 ay (30 gun) icinde gerceklesecek etkinlikler
+- **Status:** Sadece `APPROVED` etkinlikler
+- **Exclusion:** Kullanicinin daha once ilgi gostermedigi etkinlikler (zaten ilgi gosterilenler listelenmez)
+- **Siralama:** Tarih ve saate gore artan
+- **Label format:** `gg Ay — Etkinlik Adi (Duzenleyen Adi)`
+
+```
+┌─────────────────────────────────────────────────┐
+│          Etkinlige Ilgi Goster              [X]  │
+├─────────────────────────────────────────────────┤
+│                                                  │
+│  Ilgi Gosterilecek Etkinlik *                    │
+│  ┌─────────────────────────────────────────────┐ │
+│  │ Etkinlik secin...                       [v] │ │
+│  │                                             │ │
+│  │  · 16 Nis — RAG Sohbetleri (Ahmet Yilmaz)  │ │
+│  │  · 18 Nis — Python Workshop (Ayse Demir)    │ │
+│  │  · 22 Nis — DevOps Sunumu (Can Kaya)        │ │
+│  │  · 28 Nis — AI Paneli (Zeynep Kara)         │ │
+│  │  · 05 May — Web3 Sohbeti (Mehmet Aydin)     │ │
+│  │                                             │ │
+│  └─────────────────────────────────────────────┘ │
+│                                                  │
+│  _Onumuzdeki 1 ay icinde gerceklesecek ve       │
+│   henuz ilgi gostermediginiz etkinlikler._       │
+│                                                  │
+│                     [Iptal]  [Ilgi Goster]       │
+└─────────────────────────────────────────────────┘
+```
+
+**`/event add_me` — secenek yok (ephemeral):**
+
+Onumuzdeki 1 ay icinde ilgi gosterilebilecek etkinlik yoksa modal acilmaz:
+
+```
+┌─ Event Bot (sadece sana gorunur) ──────────────────┐
+│                                                     │
+│  📭 Onumuzdeki 1 ay icinde ilgi gosterebileceginiz │
+│  etkinlik yok.                                      │
+│                                                     │
+│  Tum etkinlikleri gormek icin `/event list`         │
+│  komutunu kullanin.                                  │
+│                                                     │
+└─────────────────────────────────────────────────────┘
+```
+
+**`/event add_me` — basarili (ephemeral):**
+
+Form gonderildikten sonra gelen onay mesaji:
 
 ```
 ┌─ Event Bot (sadece sana gorunur) ──────────────────┐
@@ -161,7 +212,7 @@ Tum komutlar `#serbest-kursu` kanalinda calisir.
 │  🙋 Ilgin kaydedildi!                                │
 │                                                     │
 │  *Python ile Web Scraping Workshop*                  │
-│  📅 15 Nisan 2026 · 🕐 20:00 · 📍 Zoom              │
+│  📅 18 Nisan 2026 · 🕐 20:00 · 📍 Zoom              │
 │                                                     │
 │  Etkinlik gunu hatirlatma e-postasi alacaksin.       │
 │                                                     │
@@ -172,7 +223,7 @@ Tum komutlar `#serbest-kursu` kanalinda calisir.
 └─────────────────────────────────────────────────────┘
 ```
 
-**`/event add_me <id>` — basarili (DM):**
+**`/event add_me` — basarili (DM):**
 
 ```
 ┌─ Event Bot → @ahmet (DM) ─────────────────────────┐
@@ -180,7 +231,7 @@ Tum komutlar `#serbest-kursu` kanalinda calisir.
 │  🙋 Ilgin kaydedildi!                                │
 │                                                     │
 │  *Python ile Web Scraping Workshop*                  │
-│  📅 15 Nisan 2026 · 🕐 20:00 · 📍 Zoom              │
+│  📅 18 Nisan 2026 · 🕐 20:00 · 📍 Zoom              │
 │  🔗 https://zoom.us/j/123456                        │
 │                                                     │
 │  Etkinlik gunu hatirlatma e-postasi alacaksin.       │
@@ -192,30 +243,15 @@ Tum komutlar `#serbest-kursu` kanalinda calisir.
 └─────────────────────────────────────────────────────┘
 ```
 
-**`/event add_me <id>` — zaten ilgi gosterilmis (ephemeral):**
+**Race condition (nadir): Secim sirasinda baskasi veya kendi butonla ilgi gosterirse (ephemeral):**
 
 ```
 ┌─ Event Bot (sadece sana gorunur) ──────────────────┐
 │                                                     │
-│  ℹ️ Bu etkinlige zaten ilgi gosterdiniz.             │
+│  ℹ️ Bu etkinlige zaten ilgi gostermissiniz.          │
 │                                                     │
 │  *Python ile Web Scraping Workshop*                  │
-│  📅 15 Nisan 2026 · 🕐 20:00                        │
 │  _#EVT-a1b2_                                        │
-│                                                     │
-└─────────────────────────────────────────────────────┘
-```
-
-**`/event add_me <id>` — gecersiz ID veya APPROVED olmayan event (ephemeral):**
-
-```
-┌─ Event Bot (sadece sana gorunur) ──────────────────┐
-│                                                     │
-│  ❌ Etkinlik bulunamadi veya ilgi gosterilemez        │
-│  durumda.                                            │
-│                                                     │
-│  Aktif etkinlikleri gormek icin `/event list`        │
-│  komutunu kullanin.                                  │
 │                                                     │
 └─────────────────────────────────────────────────────┘
 ```
@@ -647,14 +683,18 @@ Bolum 3.3'te tanimlandigi gibi otomatik belirlenir:
 ### 5.5 Ilgi Gosterme Mekanizmasi
 
 Kullanicilar iki yolla ilgi gosterebilir:
-- **[🙋 Katilacagim] butonu** — duyuru/hatirlatma mesajlarindaki buton
-- **`/event add_me <id>` komutu** — komut ile
+- **[🙋 Katilacagim] butonu** — duyuru/hatirlatma mesajlarindaki buton (tek tikla ilgi gosterir)
+- **`/event add_me` komutu** — modal form ile secim (bolum 2.1'deki mockup)
 
-Her iki yol da ayni backend mantigi kullanir:
+Her iki yol da ayni backend mantigini kullanir:
 1. `event_interest` tablosunda `(event_id, slack_id)` cifti kontrol edilir
-2. Kayit yoksa olusturulur → ephemeral basari mesaji
-3. Kayit varsa → ephemeral "zaten ilgi gosterdiniz" mesaji
+2. Kayit yoksa olusturulur → ephemeral basari mesaji + DM
+3. Kayit varsa → ephemeral "zaten ilgi gosterdiniz" mesaji (race condition durumu)
 4. Sadece `APPROVED` statusundeki etkinliklere ilgi gosterilebilir
+
+**Farklar:**
+- **Buton:** Duyuru mesajindaki etkinlige dogrudan ilgi gosterir
+- **Form:** Kullanici onumuzdeki 1 ay icindeki, henuz ilgi gostermedigi etkinlikleri dropdown'dan secer. Zaten ilgi gosterilen etkinlikler dropdown'da listelenmez.
 
 Buton tiklandiktan sonra buton metni degismez (Slack buton state desteklemez), ancak alt context satiri guncellenir: `_5 kisi ilgi gosterdi_`
 
