@@ -37,11 +37,17 @@ class Event(Base, IDMixin, TimestampMixin):
     date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     time: Mapped[time] = mapped_column(Time, nullable=False)
     duration_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
-    location_type: Mapped[LocationType] = mapped_column(SAEnum(LocationType), nullable=False)
+    location_type: Mapped[LocationType] = mapped_column(
+        SAEnum(LocationType, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+    )
     channel_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     link: Mapped[str | None] = mapped_column(String(500), nullable=True)
     yzta_request: Mapped[str | None] = mapped_column(Text, nullable=True)
-    status: Mapped[EventStatus] = mapped_column(SAEnum(EventStatus), nullable=False, index=True)
+    status: Mapped[EventStatus] = mapped_column(
+        SAEnum(EventStatus, values_callable=lambda x: [e.value for e in x]),
+        nullable=False, index=True,
+    )
     admin_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     approved_by: Mapped[str | None] = mapped_column(String(32), nullable=True)
     meta: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
