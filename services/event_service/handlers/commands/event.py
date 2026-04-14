@@ -63,8 +63,7 @@ def handle_event_command(ack: Ack, body: dict, client, command):
         event_id = args[1] if len(args) > 1 else None
         _handle_update(client, body, user_id, channel_id, event_id)
     elif cmd == "cancel":
-        event_id = args[1] if len(args) > 1 else None
-        _handle_cancel(client, user_id, channel_id, event_id)
+        _handle_cancel(client, body, user_id, channel_id)
     elif cmd == "help":
         _handle_help(client, user_id, channel_id)
     else:
@@ -424,81 +423,65 @@ def _handle_add_me(client, user_id: str, channel_id: str, event_id: str | None) 
 # /event cancel <id>
 # ---------------------------------------------------------------------------
 
-def _handle_cancel(client, user_id: str, channel_id: str, event_id: str | None) -> None:
-    if not event_id:
-        client.chat_postEphemeral(channel=channel_id, user=user_id,
-                                   text="Kullanim: `/event cancel <id>`")
-        return
-
+def _handle_cancel(client, body: dict, user_id: str, channel_id: str) -> None:
+    """Iptal modal'ini acar. Dropdown'da kullanicinin yetkisine gore aktif etkinlikler listelenir."""
     is_admin = user_id in settings.slack_admins
 
-    async def _cancel():
-        async with db.session() as session:
-            repo = EventRepository(session)
-            evt = await repo.get(event_id)
-            if not evt:
-                return None, "not_found"
-            if evt.status != EventStatus.APPROVED:
-                return evt, "wrong_status"
-            if evt.creator_slack_id != user_id and not is_admin:
-                return evt, "no_permission"
-            evt.status = EventStatus.CANCELLED
-            await session.flush()
-            return evt, "ok"
-
-    try:
-        evt, status = _run_async(_cancel())
-    except Exception as e:
-        _logger.error("[CMD] cancel failed: %s", e)
-        client.chat_postEphemeral(channel=channel_id, user=user_id, text="Iptal islemi basarisiz.")
-        return
-
-    if status == "not_found":
-        client.chat_postEphemeral(channel=channel_id, user=user_id, text="Etkinlik bulunamadi.")
-        return
-    if status == "wrong_status":
-        client.chat_postEphemeral(channel=channel_id, user=user_id,
-                                   text="Sadece onaylanmis etkinlikler iptal edilebilir.")
-        return
-    if status == "no_permission":
-        client.chat_postEphemeral(channel=channel_id, user=user_id,
-                                   text="Bu etkinligi iptal etme yetkiniz yok.")
-        return
-
-    # Basarili
-    client.chat_postEphemeral(
-        channel=channel_id, user=user_id,
-        text=f"Etkinlik basariyla iptal edildi.\n*{evt.name}*\n_{evt.id}_"
-    )
-
-    # Duyuru kanallarina iptal bildirisi
-    from ...utils.notifications import post_cancellation
-    post_cancellation(evt, user_id)
-
-    # Admin iptal ettiyse sahibe DM
-    if is_admin and evt.creator_slack_id != user_id:
-        from ...utils.notifications import send_dm
-        send_dm(
-            evt.creator_slack_id,
-            f"Etkinliginiz admin tarafindan iptal edildi.\n*{evt.name}*\n_{evt.id}_"
-        )
-
-    # Ilgi gosterenlere iptal e-postasi
-    async def _notify_interested():
+    async def _fetch_events():
         async with db.session(read_only=True) as session:
-            interest_repo = EventInterestRepository(session)
-            interests = await interest_repo.list_by_event(event_id)
-            return [i.slack_id for i in interests]
+            repo = EventRepository(session)
+            if is_admin:
+                return await repo.list_by_status(EventStatus.APPROVED)
+            else:
+                return await repo.list_by_creator_and_status(user_id, EventStatus.APPROVED)
 
     try:
-        interested_ids = _run_async(_notify_interested())
-        from ...utils.email import send_cancellation_email
-        for sid in interested_ids:
-            send_cancellation_email(sid, evt)
+        events = _run_async(_fetch_events())
     except Exception as e:
-        _logger.warning("[CMD] Cancel email notifications failed: %s", e)
+        _logger.error("[CMD] cancel fetch failed: %s", e)
+        client.chat_postEphemeral(channel=channel_id, user=user_id, text="Etkinlikler yuklenemedi.")
+        return
 
-    _logger.info("[CMD] Event cancelled: %s by %s", event_id, user_id)
+    if not events:
+        client.chat_postEphemeral(channel=channel_id, user=user_id,
+                                   text="Iptal edilebilecek aktif etkinliginiz yok.")
+        return
+
+    # Dropdown secenekleri olustur — tarihe gore sirali
+    options = []
+    for evt in sorted(events, key=lambda e: (e.date, e.time)):
+        label = f"{evt.date.strftime('%d %b')} — {evt.name} (@{evt.creator_slack_id})"
+        # Slack option text max 75 karakter
+        if len(label) > 75:
+            label = label[:72] + "..."
+        options.append({
+            "text": {"type": "plain_text", "text": label},
+            "value": evt.id,
+        })
+
+    client.views_open(
+        trigger_id=body.get("trigger_id"),
+        view={
+            "type": "modal",
+            "callback_id": "event_cancel_modal",
+            "title": {"type": "plain_text", "text": "Etkinlik Iptal Et"},
+            "submit": {"type": "plain_text", "text": "Etkinligi Iptal Et"},
+            "close": {"type": "plain_text", "text": "Iptal"},
+            "blocks": [
+                {
+                    "type": "input",
+                    "block_id": "cancel_event_select",
+                    "element": {
+                        "type": "static_select",
+                        "action_id": "val",
+                        "placeholder": {"type": "plain_text", "text": "Etkinlik secin..."},
+                        "options": options,
+                    },
+                    "label": {"type": "plain_text", "text": "Iptal Edilecek Etkinlik"},
+                },
+            ],
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -587,8 +570,8 @@ def _handle_help(client, user_id: str, channel_id: str) -> None:
         "Etkinlige ilgi goster. Her etkinlige 1 kez ilgi gosterilebilir. Butona tiklama ile ayni isi gorur.\n\n"
         "*`/event update <id>`*\n"
         "Etkinlik bilgilerini guncelle (sahip + admin).\n\n"
-        "*`/event cancel <id>`*\n"
-        "Etkinligi iptal et (sahip + admin).\n\n"
+        "*`/event cancel`*\n"
+        "Iptal formu acar. Sahip kendi eventlerini, admin tum aktif eventleri gorup iptal edebilir.\n\n"
         "*`/event help`*\n"
         "Bu yardim mesajini goster."
     )

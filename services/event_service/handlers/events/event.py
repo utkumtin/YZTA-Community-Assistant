@@ -437,3 +437,78 @@ def handle_interest_btn(ack: Ack, body: dict, client, action):
 @app.action("event_calendar_btn")
 def handle_calendar_btn(ack: Ack, body: dict, client, action):
     ack()
+
+
+# ---------------------------------------------------------------------------
+# Iptal modal submission
+# ---------------------------------------------------------------------------
+
+@app.view("event_cancel_modal")
+def handle_cancel_modal(ack: Ack, body: dict, client, view):
+    """Iptal formu gonderildiginde calisir."""
+    ack()
+
+    user_id = body["user"]["id"]
+    values = view["state"]["values"]
+    event_id = values.get("cancel_event_select", {}).get("val", {}).get("selected_option", {}).get("value")
+
+    if not event_id:
+        return
+
+    is_admin = user_id in settings.slack_admins
+
+    async def _cancel():
+        async with db.session() as session:
+            repo = EventRepository(session)
+            evt = await repo.get(event_id)
+            if not evt or evt.status != EventStatus.APPROVED:
+                return None
+            if evt.creator_slack_id != user_id and not is_admin:
+                return None
+            evt.status = EventStatus.CANCELLED
+            await session.flush()
+            return evt
+
+    try:
+        evt = _run_async(_cancel())
+    except Exception as e:
+        _logger.error("[EVT] Cancel failed: %s", e)
+        return
+
+    if not evt:
+        return
+
+    # Duyuru kanallarina iptal bildirisi
+    from ...utils.notifications import post_cancellation, send_dm as _send_dm
+    post_cancellation(evt, user_id)
+
+    # Kullaniciya DM ile onay
+    _send_dm(
+        user_id,
+        f"Etkinlik basariyla iptal edildi.\n*{evt.name}*\n"
+        f"{evt.date.strftime('%d %B %Y')} · {evt.time.strftime('%H:%M')}\n_{evt.id}_"
+    )
+
+    # Admin iptal ettiyse sahibe DM
+    if is_admin and evt.creator_slack_id != user_id:
+        _send_dm(
+            evt.creator_slack_id,
+            f"Etkinliginiz admin tarafindan iptal edildi.\n*{evt.name}*\n_{evt.id}_"
+        )
+
+    # Ilgi gosterenlere iptal e-postasi
+    async def _notify_interested():
+        async with db.session(read_only=True) as session:
+            interest_repo = EventInterestRepository(session)
+            interests = await interest_repo.list_by_event(event_id)
+            return [i.slack_id for i in interests]
+
+    try:
+        interested_ids = _run_async(_notify_interested())
+        from ...utils.email import send_cancellation_email
+        for sid in interested_ids:
+            send_cancellation_email(sid, evt)
+    except Exception as e:
+        _logger.warning("[EVT] Cancel email notifications failed: %s", e)
+
+    _logger.info("[EVT] Event cancelled via modal: %s by %s", event_id, user_id)

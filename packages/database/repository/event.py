@@ -57,6 +57,15 @@ class EventRepository(BaseRepository[Event]):
         )
         return list(result.scalars().all())
 
+    async def list_by_creator_and_status(self, slack_id: str, status: EventStatus) -> list[Event]:
+        """Kullanicinin belirli statusdeki etkinlikleri."""
+        result = await self.session.execute(
+            select(Event)
+            .where(Event.creator_slack_id == slack_id, Event.status == status)
+            .order_by(Event.date, Event.time)
+        )
+        return list(result.scalars().all())
+
     async def list_history(self) -> list[Event]:
         """Gecmis etkinlikler (COMPLETED + CANCELLED)."""
         result = await self.session.execute(
