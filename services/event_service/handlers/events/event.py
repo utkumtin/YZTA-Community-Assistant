@@ -482,6 +482,21 @@ def handle_cancel_modal(ack: Ack, body: dict, client, view):
     from ...utils.notifications import post_cancellation, send_dm as _send_dm
     post_cancellation(evt, user_id)
 
+    # Admin kanalina iptal bildirimi
+    try:
+        slack_client.bot_client.chat_postMessage(
+            channel=settings.slack_admin_channel,
+            text=(
+                f"Etkinlik Iptal Edildi\n\n"
+                f"*{evt.name}*\n"
+                f"{evt.date.strftime('%d %B %Y')} · {evt.time.strftime('%H:%M')}\n"
+                f"*Duzenleyen:* <@{evt.creator_slack_id}>\n"
+                f"*Iptal Eden:* <@{user_id}>\n_{evt.id}_"
+            ),
+        )
+    except Exception as e:
+        _logger.warning("[EVT] Admin cancel notification failed: %s", e)
+
     # Kullaniciya DM ile onay
     _send_dm(
         user_id,
