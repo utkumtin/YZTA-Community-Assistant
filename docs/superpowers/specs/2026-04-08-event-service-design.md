@@ -37,30 +37,44 @@ Tum komutlar `#serbest-kursu` kanalinda calisir.
 
 **`/event list` (ephemeral):**
 
+Format: emoji yok, event ID yok. Her etkinlik 4 satirda gosterilir:
+- 1. satir: `*Etkinlik Adi*` (bold)
+- 2. satir: `Tarih · Saat · Lokasyon` — Slack kanali ise `<#C123>` mention, harici platform ise duz metin. Link varsa platform adindan sonra parantez icinde `(<link|Link>)` eklenir.
+- 3. satir: `Etkinlik Aciklamasi`
+- 4. satir: `<@creator>  · N ilgili · ✓ ilgi gosterdin` — son kisim sadece kullanici bu etkinlige ilgi gosterdiyse eklenir.
+
 ```
 ┌─ Event Bot (sadece sana gorunur) ──────────────────┐
 │                                                     │
-│  📅 Bu Ayin Etkinlikleri                            │
-│                                                     │
+│  Bu Ayin Etkinlikleri                                │
 │  ─────────────────────────────────────────────      │
 │                                                     │
-│  • #EVT-a1b2 | *Python Workshop*                    │
-│    👤 @ahmet · 📅 15 Nisan 20:00 · 📍 Zoom          │
-│    🔗 https://zoom.us/j/123 · 🙋 5 ilgili           │
+│  • *Python Workshop*                                 │
+│    15 Nisan 2026 · 20:00 · Zoom (<zoom.us/j/123|Link>)│
+│    Python ile web scraping tekniklerini ogrenecegiz.│
+│    <@U123>  · 5 ilgili · ✓ ilgi gosterdin           │
 │                                                     │
-│  • #EVT-c3d4 | *AI Sohbeti*                         │
-│    👤 @ayse · 📅 22 Nisan 21:00 · 📍 #genel          │
-│    🙋 3 ilgili                                       │
+│  • *AI Sohbeti*                                      │
+│    22 Nisan 2026 · 21:00 · <#C456>                  │
+│    Yapay zeka trendleri uzerine serbest sohbet.      │
+│    <@U789>  · 3 ilgili                              │
 │                                                     │
-│  • #EVT-e5f6 | *DevOps Sunumu*                       │
-│    👤 @can · 📅 28 Nisan 18:30 · 📍 Google Meet      │
-│    🔗 https://meet.google.com/xyz · 🙋 8 ilgili     │
+│  • *DevOps Sunumu*                                   │
+│    28 Nisan 2026 · 18:30 · Google Meet (<meet.g.co/xyz|Link>)│
+│    CI/CD ve IaC kavramlarina giris sunumu.          │
+│    <@UABC>  · 8 ilgili · ✓ ilgi gosterdin           │
 │                                                     │
 │  ─────────────────────────────────────────────      │
-│  _Toplam: 3 etkinlik_                               │
+│  Toplam: 3 etkinlik                                  │
 │                                                     │
 └─────────────────────────────────────────────────────┘
 ```
+
+**Teknik notlar:**
+
+- `<@U123>` ve `<#C456>` Slack mrkdwn mention'lari — tiklanabilir olarak render olur.
+- Kullanicinin ilgi gosterdigi etkinlikler `EventInterestRepository` ile tek sorguda toplu olarak cekilir (N+1 onleme icin `list_event_ids_by_user(slack_id)` pattern'i kullanilabilir).
+- Link gosterimi `<url|Link>` formatinda olup kucuk yer kaplar.
 
 **`/event my_list` (ephemeral):**
 
