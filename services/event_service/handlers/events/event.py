@@ -670,10 +670,11 @@ def handle_add_me_modal(ack: Ack, body: dict, client, view):
                 channel=channel_id,
                 user=user_id,
                 text=(
-                    f"🙋 Ilgin kaydedildi!\n\n"
+                    f"Ilgin kaydedildi!\n"
                     f"*{evt.name}*\n"
-                    f"{evt.date.strftime('%d %B %Y')} · {evt.time.strftime('%H:%M')} · {loc}\n\n"
-                    f"Etkinlik gunu hatirlatma e-postasi alacaksin.\n_{evt.id}_"
+                    f"{evt.date.strftime('%d %B %Y')} · {evt.time.strftime('%H:%M')} · {loc}\n"
+                    f"{evt.description}\n\n"
+                    f"Etkinlik gunu hatirlatma e-postasi alacaksin."
                 ),
             )
         except Exception as e:

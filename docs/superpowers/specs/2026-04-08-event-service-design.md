@@ -204,19 +204,17 @@ Onumuzdeki 1 ay icinde ilgi gosterilebilecek etkinlik yoksa modal acilmaz:
 
 **`/event add_me` — basarili (ephemeral):**
 
-Form gonderildikten sonra, komutun yazildigi kanalda gelen onay mesaji. Modal view submission'larinda `body.channel_id` bulunmadigi icin, kanal bilgisi modal acilirken `private_metadata` uzerinden tasinir ve submission handler'inda kullanilir.
+Form gonderildikten sonra, komutun yazildigi kanalda gelen onay mesaji. Modal view submission'larinda `body.channel_id` bulunmadigi icin, kanal bilgisi modal acilirken `private_metadata` uzerinden tasinir ve submission handler'inda kullanilir. Mesaj minimal tutulur: emoji yok, event ID yok, buton yok.
 
 ```
 ┌─ Event Bot (sadece sana gorunur) ──────────────────┐
 │                                                     │
-│  🙋 Ilgin kaydedildi!                                │
-│                                                     │
+│  Ilgin kaydedildi!                                   │
 │  *Python ile Web Scraping Workshop*                  │
-│  📅 18 Nisan 2026 · 🕐 20:00 · 📍 Zoom              │
+│  18 Nisan 2026 · 20:00 · Zoom                       │
+│  Python ile web scraping tekniklerini ogrenecegiz.  │
 │                                                     │
 │  Etkinlik gunu hatirlatma e-postasi alacaksin.       │
-│                                                     │
-│  _#EVT-a1b2_                                        │
 │                                                     │
 └─────────────────────────────────────────────────────┘
 ```
