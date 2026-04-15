@@ -616,6 +616,14 @@ def handle_add_me_modal(ack: Ack, body: dict, client, view):
     values = view["state"]["values"]
     event_id = values.get("add_me_event_select", {}).get("val", {}).get("selected_option", {}).get("value")
 
+    # Kanal bilgisini private_metadata'dan oku (ephemeral mesaj icin)
+    channel_id: str | None = None
+    try:
+        meta = json.loads(view.get("private_metadata") or "{}")
+        channel_id = meta.get("channel_id")
+    except Exception:
+        channel_id = None
+
     if not event_id:
         return
 
@@ -650,11 +658,28 @@ def handle_add_me_modal(ack: Ack, body: dict, client, view):
         )
         return
 
-    # Basarili — DM gonder (ephemeral modal submission'da channel context yok)
+    # Basarili
     from ...utils.notifications import _calendar_url
     cal_url = _calendar_url(evt)
     loc = _location_display(evt)
 
+    # 1) Komutun yazildigi kanala ephemeral onay (minimal — butonsuz)
+    if channel_id:
+        try:
+            client.chat_postEphemeral(
+                channel=channel_id,
+                user=user_id,
+                text=(
+                    f"🙋 Ilgin kaydedildi!\n\n"
+                    f"*{evt.name}*\n"
+                    f"{evt.date.strftime('%d %B %Y')} · {evt.time.strftime('%H:%M')} · {loc}\n\n"
+                    f"Etkinlik gunu hatirlatma e-postasi alacaksin.\n_{evt.id}_"
+                ),
+            )
+        except Exception as e:
+            _logger.warning("[EVT] add_me ephemeral gonderilemedi: %s", e)
+
+    # 2) DM (tam detay + Google Takvime Ekle butonu)
     dm_builder = MessageBuilder()
     dm_builder.add_text(
         f"Ilgin kaydedildi!\n\n"

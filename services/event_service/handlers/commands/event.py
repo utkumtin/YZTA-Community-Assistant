@@ -420,11 +420,13 @@ def _handle_add_me(client, body: dict, user_id: str, channel_id: str) -> None:
             "value": evt.id,
         })
 
+    import json as _json
     client.views_open(
         trigger_id=body.get("trigger_id"),
         view={
             "type": "modal",
             "callback_id": "event_add_me_modal",
+            "private_metadata": _json.dumps({"channel_id": channel_id}),
             "title": {"type": "plain_text", "text": "Etkinlige Ilgi Goster"},
             "submit": {"type": "plain_text", "text": "Ilgi Goster"},
             "close": {"type": "plain_text", "text": "Iptal"},
