@@ -52,9 +52,9 @@ def _extract_form_values(values: dict) -> dict:
 def _validate_form(data: dict) -> str | None:
     """Backend validasyonu. Hata mesaji doner, gecerliyse None."""
     if data["location_type"] == LocationType.SLACK_CHANNEL and not data.get("channel_id"):
-        return "Slack Kanali secildiginde kanal alani zorunludur."
+        return "Slack Kanalı seçildiğinde kanal alanı zorunludur."
     if data["location_type"] != LocationType.SLACK_CHANNEL and not data.get("link"):
-        return "Harici platform secildiginde link alani zorunludur."
+        return "Harici platform seçildiğinde link alanı zorunludur."
     if not data.get("date") or not data.get("time"):
         return "Tarih ve saat zorunludur."
     return None
@@ -110,10 +110,10 @@ def handle_create_modal(ack: Ack, body: dict, client, view):
 
     loc = _location_display(event)
     confirm_text = (
-        f"Etkinlik talebiniz basariyla iletildi!\n\n"
+        f"Etkinlik talebiniz başarıyla iletildi!\n\n"
         f"*{event.name}*\n"
         f"{event.date.strftime('%d %B %Y')} · {event.time.strftime('%H:%M')} · {loc}\n\n"
-        f"Admin onayini bekliyor. Sonuc Slack DM ve e-posta ile bildirilecek.\n"
+        f"Admin onayını bekliyor. Sonuç Slack DM ve e-posta ile bildirilecek.\n"
         f"_Talep ID: {event.id}_"
     )
     send_dm(user_id, confirm_text)
@@ -185,9 +185,9 @@ def handle_update_select_modal(ack: Ack, body: dict, client, view):
                 "type": "modal",
                 "callback_id": "event_update_modal",
                 "private_metadata": json.dumps({"event_id": event_id}),
-                "title": {"type": "plain_text", "text": "Etkinlik Guncelle"},
-                "submit": {"type": "plain_text", "text": "Guncelle"},
-                "close": {"type": "plain_text", "text": "Iptal"},
+                "title": {"type": "plain_text", "text": "Etkinlik Güncelle"},
+                "submit": {"type": "plain_text", "text": "Güncelle"},
+                "close": {"type": "plain_text", "text": "İptal"},
                 "blocks": blocks,
             },
         )
@@ -270,8 +270,8 @@ def handle_update_modal(ack: Ack, body: dict, client, view):
         return
 
     field_labels = {
-        "name": "Ad", "topic": "Konu", "description": "Aciklama",
-        "date": "Tarih", "time": "Saat", "duration_minutes": "Sure",
+        "name": "Ad", "topic": "Konu", "description": "Açıklama",
+        "date": "Tarih", "time": "Saat", "duration_minutes": "Süre",
         "location_type": "Lokasyon", "channel_id": "Kanal", "link": "Link",
         "yzta_request": "YZTA Talep",
     }
@@ -282,10 +282,10 @@ def handle_update_modal(ack: Ack, body: dict, client, view):
         diff_lines.append(f"*{label}:* ~{old_display}~ → *{new}*")
 
     diff_text = (
-        f"Etkinlik Guncellendi\n\n"
+        f"Etkinlik Güncellendi\n\n"
         f"*{evt.name}*\n"
-        f"*Guncelleyen:* <@{user_id}>\n\n"
-        f"*Degisen Alanlar:*\n" + "\n".join(diff_lines) + f"\n\n_{evt.id}_"
+        f"*Güncelleyen:* <@{user_id}>\n\n"
+        f"*Değişen Alanlar:*\n" + "\n".join(diff_lines) + f"\n\n_{evt.id}_"
     )
     try:
         slack_client.bot_client.chat_postMessage(
@@ -331,12 +331,12 @@ def handle_approve_btn(ack: Ack, body: dict, client, action):
             "private_metadata": event_id,
             "title": {"type": "plain_text", "text": "Etkinlik Onayla"},
             "submit": {"type": "plain_text", "text": "Onayla"},
-            "close": {"type": "plain_text", "text": "Iptal"},
+            "close": {"type": "plain_text", "text": "İptal"},
             "blocks": [
                 {"type": "section", "text": {"type": "mrkdwn", "text": f"Etkinlik *{event_id}* onaylanacak."}},
                 {"type": "input", "block_id": "admin_note", "optional": True,
                  "element": {"type": "plain_text_input", "action_id": "val", "multiline": True,
-                             "placeholder": {"type": "plain_text", "text": "Varsa eklemek istediginiz notu yazin..."}},
+                             "placeholder": {"type": "plain_text", "text": "Varsa eklemek istediğiniz notu yazın..."}},
                  "label": {"type": "plain_text", "text": "Not (opsiyonel)"}},
             ],
         },
@@ -356,12 +356,12 @@ def handle_reject_btn(ack: Ack, body: dict, client, action):
             "private_metadata": event_id,
             "title": {"type": "plain_text", "text": "Etkinlik Reddet"},
             "submit": {"type": "plain_text", "text": "Reddet"},
-            "close": {"type": "plain_text", "text": "Iptal"},
+            "close": {"type": "plain_text", "text": "İptal"},
             "blocks": [
                 {"type": "section", "text": {"type": "mrkdwn", "text": f"Etkinlik *{event_id}* reddedilecek."}},
                 {"type": "input", "block_id": "admin_note", "optional": True,
                  "element": {"type": "plain_text_input", "action_id": "val", "multiline": True,
-                             "placeholder": {"type": "plain_text", "text": "Varsa eklemek istediginiz notu yazin..."}},
+                             "placeholder": {"type": "plain_text", "text": "Varsa eklemek istediğiniz notu yazın..."}},
                  "label": {"type": "plain_text", "text": "Not (opsiyonel)"}},
             ],
         },
@@ -396,11 +396,11 @@ def handle_admin_approve(ack: Ack, body: dict, client, view):
     loc = _location_display(evt)
     send_dm(
         evt.creator_slack_id,
-        f"Etkinliginiz Onaylandi!\n\n"
+        f"Etkinliğiniz Onaylandı!\n\n"
         f"*{evt.name}*\n"
         f"{evt.date.strftime('%d %B %Y')} · {evt.time.strftime('%H:%M')} · {loc}"
         f"{note_text}\n\n"
-        f"Duyuru #serbest-kursu kanalina gonderildi.\n_{evt.id}_"
+        f"Duyuru #serbest-kürsü kanalına gönderildi.\n_{evt.id}_"
     )
 
     send_user_status_email(evt.creator_slack_id, evt, "approved", note)
@@ -435,11 +435,11 @@ def handle_admin_reject(ack: Ack, body: dict, client, view):
     note_text = f"\n*Admin Notu:* {note}" if note else ""
     send_dm(
         evt.creator_slack_id,
-        f"Etkinliginiz Reddedildi\n\n"
+        f"Etkinliğiniz Reddedildi\n\n"
         f"*{evt.name}*\n"
         f"{evt.date.strftime('%d %B %Y')} · {evt.time.strftime('%H:%M')}"
         f"{note_text}\n\n"
-        f"Yeni bir etkinlik talebi icin `/event create` komutunu kullanabilirsiniz.\n_{evt.id}_"
+        f"Yeni bir etkinlik talebi için `/event create` komutunu kullanabilirsiniz.\n_{evt.id}_"
     )
 
     send_user_status_email(evt.creator_slack_id, evt, "rejected", note)
@@ -480,30 +480,30 @@ def handle_interest_btn(ack: Ack, body: dict, client, action):
 
     if result == "not_found":
         client.chat_postEphemeral(channel=channel_id, user=user_id,
-                                   text="Etkinlik bulunamadi veya ilgi gosterilemez durumda.")
+                                   text="Etkinlik bulunamadı veya ilgi gösterilemez durumda.")
         return
     if result == "already":
         client.chat_postEphemeral(channel=channel_id, user=user_id,
-                                   text=f"Bu etkinlige zaten ilgi gosterdiniz.\n*{evt.name}*\n_{evt.id}_")
+                                   text=f"Bu etkinliğe zaten ilgi gösterdiniz.\n*{evt.name}*\n_{evt.id}_")
         return
 
     from ...utils.notifications import _calendar_url
     cal_url = _calendar_url(evt)
     client.chat_postEphemeral(
         channel=channel_id, user=user_id,
-        text=f"Ilgin kaydedildi!\n*{evt.name}*\n_{evt.id}_"
+        text=f"İlgin kaydedildi!\n*{evt.name}*\n_{evt.id}_"
     )
 
     dm_builder = MessageBuilder()
     loc = _location_display(evt)
     dm_builder.add_text(
-        f"Ilgin kaydedildi!\n\n"
+        f"İlgin kaydedildi!\n\n"
         f"*{evt.name}*\n"
         f"{evt.date.strftime('%d %B %Y')} · {evt.time.strftime('%H:%M')} · {loc}\n\n"
-        f"Etkinlik gunu hatirlatma e-postasi alacaksin.\n_{evt.id}_"
+        f"Etkinlik günü hatırlatma e-postası alacaksın.\n_{evt.id}_"
     )
     dm_builder.add_button("Google Takvime Ekle", "event_calendar_btn", value=evt.id, url=cal_url)
-    send_dm(user_id, f"Ilgin kaydedildi: {evt.name}", dm_builder.build())
+    send_dm(user_id, f"İlgin kaydedildi: {evt.name}", dm_builder.build())
 
     _logger.info("[EVT] Interest added: event=%s user=%s", event_id, user_id)
 
@@ -561,11 +561,11 @@ def handle_cancel_modal(ack: Ack, body: dict, client, view):
         slack_client.bot_client.chat_postMessage(
             channel=settings.slack_admin_channel,
             text=(
-                f"Etkinlik Iptal Edildi\n\n"
+                f"Etkinlik İptal Edildi\n\n"
                 f"*{evt.name}*\n"
                 f"{evt.date.strftime('%d %B %Y')} · {evt.time.strftime('%H:%M')}\n"
-                f"*Duzenleyen:* <@{evt.creator_slack_id}>\n"
-                f"*Iptal Eden:* <@{user_id}>\n_{evt.id}_"
+                f"*Düzenleyen:* <@{evt.creator_slack_id}>\n"
+                f"*İptal Eden:* <@{user_id}>\n_{evt.id}_"
             ),
         )
     except Exception as e:
@@ -574,7 +574,7 @@ def handle_cancel_modal(ack: Ack, body: dict, client, view):
     # Kullaniciya DM ile onay
     _send_dm(
         user_id,
-        f"Etkinlik basariyla iptal edildi.\n*{evt.name}*\n"
+        f"Etkinlik başarıyla iptal edildi.\n*{evt.name}*\n"
         f"{evt.date.strftime('%d %B %Y')} · {evt.time.strftime('%H:%M')}\n_{evt.id}_"
     )
 
@@ -582,7 +582,7 @@ def handle_cancel_modal(ack: Ack, body: dict, client, view):
     if is_admin and evt.creator_slack_id != user_id:
         _send_dm(
             evt.creator_slack_id,
-            f"Etkinliginiz admin tarafindan iptal edildi.\n*{evt.name}*\n_{evt.id}_"
+            f"Etkinliğiniz admin tarafından iptal edildi.\n*{evt.name}*\n_{evt.id}_"
         )
 
     # Ilgi gosterenlere iptal e-postasi
@@ -644,17 +644,17 @@ def handle_add_me_modal(ack: Ack, body: dict, client, view):
         evt, status = _run_async(_add())
     except Exception as e:
         _logger.error("[EVT] add_me modal failed: %s", e)
-        send_dm(user_id, "Ilgi kaydedilemedi, tekrar deneyin.")
+        send_dm(user_id, "İlgi kaydedilemedi, tekrar deneyin.")
         return
 
     if status == "not_found":
-        send_dm(user_id, "Etkinlik bulunamadi veya ilgi gosterilemez durumda.")
+        send_dm(user_id, "Etkinlik bulunamadı veya ilgi gösterilemez durumda.")
         return
 
     if status == "already":
         send_dm(
             user_id,
-            f"Bu etkinlige zaten ilgi gostermissiniz.\n*{evt.name}*\n_{evt.id}_",
+            f"Bu etkinliğe zaten ilgi göstermişsiniz.\n*{evt.name}*\n_{evt.id}_",
         )
         return
 
@@ -670,11 +670,11 @@ def handle_add_me_modal(ack: Ack, body: dict, client, view):
                 channel=channel_id,
                 user=user_id,
                 text=(
-                    f"Ilgin kaydedildi!\n"
+                    f"İlgin kaydedildi!\n"
                     f"*{evt.name}*\n"
                     f"{evt.date.strftime('%d %B %Y')} · {evt.time.strftime('%H:%M')} · {loc}\n"
                     f"{evt.description}\n\n"
-                    f"Etkinlik gunu hatirlatma e-postasi alacaksin."
+                    f"Etkinlik günü hatırlatma e-postası alacaksın."
                 ),
             )
         except Exception as e:
@@ -683,12 +683,12 @@ def handle_add_me_modal(ack: Ack, body: dict, client, view):
     # 2) DM (tam detay + Google Takvime Ekle butonu)
     dm_builder = MessageBuilder()
     dm_builder.add_text(
-        f"Ilgin kaydedildi!\n\n"
+        f"İlgin kaydedildi!\n\n"
         f"*{evt.name}*\n"
         f"{evt.date.strftime('%d %B %Y')} · {evt.time.strftime('%H:%M')} · {loc}\n\n"
-        f"Etkinlik gunu hatirlatma e-postasi alacaksin.\n_{evt.id}_"
+        f"Etkinlik günü hatırlatma e-postası alacaksın.\n_{evt.id}_"
     )
     dm_builder.add_button("Google Takvime Ekle", "event_calendar_btn", value=evt.id, url=cal_url)
-    send_dm(user_id, f"Ilgin kaydedildi: {evt.name}", dm_builder.build())
+    send_dm(user_id, f"İlgin kaydedildi: {evt.name}", dm_builder.build())
 
     _logger.info("[EVT] Interest added via modal: event=%s user=%s", event_id, user_id)

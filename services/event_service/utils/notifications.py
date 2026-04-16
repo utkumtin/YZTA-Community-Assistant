@@ -85,24 +85,24 @@ def post_announcement(event: Event, interest_count: int = 0) -> None:
         f"*{event.name}*",
         "",
         f"*Konu:* {event.topic}",
-        f"*Aciklama:* {event.description}",
+        f"*Açıklama:* {event.description}",
         "",
         f"*Tarih:* {event.date.strftime('%d %B %Y')}",
         f"*Saat:* {event.time.strftime('%H:%M')}",
-        f"*Sure:* {event.duration_minutes} dakika",
+        f"*Süre:* {event.duration_minutes} dakika",
         f"*Lokasyon:* {loc}",
     ]
     if event.link:
         lines.append(f"*Link:* <{event.link}>")
-    lines.append(f"*Duzenleyen:* <@{event.creator_slack_id}>")
+    lines.append(f"*Düzenleyen:* <@{event.creator_slack_id}>")
     builder.add_text("\n".join(lines))
 
     builder.add_divider()
-    builder.add_button("Katilacagim", "event_interest_btn", value=event.id, style="primary")
+    builder.add_button("Katılacağım", "event_interest_btn", value=event.id, style="primary")
     builder.add_button("Google Takvime Ekle", "event_calendar_btn", value=event.id, url=cal_url)
 
     if interest_count > 0:
-        builder.add_context([f"_{interest_count} kisi ilgi gosterdi_"])
+        builder.add_context([f"_{interest_count} kişi ilgi gösterdi_"])
 
     blocks = builder.build()
     text = f"Yeni Etkinlik: {event.name}"
@@ -117,13 +117,13 @@ def post_announcement(event: Event, interest_count: int = 0) -> None:
 def post_cancellation(event: Event, cancelled_by_slack_id: str) -> None:
     """Iptal duyurusu gonderir."""
     builder = MessageBuilder()
-    builder.add_header("Etkinlik Iptal Edildi")
+    builder.add_header("Etkinlik İptal Edildi")
     builder.add_text(
         f"*{event.name}*\n\n"
         f"*Tarih:* {event.date.strftime('%d %B %Y')} · *Saat:* {event.time.strftime('%H:%M')}\n"
-        f"*Duzenleyen:* <@{event.creator_slack_id}>\n"
-        f"*Iptal Eden:* <@{cancelled_by_slack_id}>\n\n"
-        "Bu etkinlik iptal edilmistir."
+        f"*Düzenleyen:* <@{event.creator_slack_id}>\n"
+        f"*İptal Eden:* <@{cancelled_by_slack_id}>\n\n"
+        "Bu etkinlik iptal edilmiştir."
     )
     builder.add_context([f"_{event.id}_"])
 
@@ -131,7 +131,7 @@ def post_cancellation(event: Event, cancelled_by_slack_id: str) -> None:
     for ch in get_announcement_channels(event):
         try:
             slack_client.bot_client.chat_postMessage(
-                channel=ch, text=f"Etkinlik Iptal: {event.name}", blocks=blocks,
+                channel=ch, text=f"Etkinlik İptal: {event.name}", blocks=blocks,
             )
         except Exception as e:
             _logger.error("[EVT-NOTIFY] Iptal duyurusu gonderilemedi channel=%s: %s", ch, e)
@@ -143,30 +143,30 @@ def post_update_announcement(event: Event) -> None:
     loc = _location_display(event)
 
     builder = MessageBuilder()
-    builder.add_header("Etkinlik Guncellendi")
+    builder.add_header("Etkinlik Güncellendi")
 
     lines = [
         f"*{event.name}*",
         "",
         f"*Tarih:* {event.date.strftime('%d %B %Y')}",
         f"*Saat:* {event.time.strftime('%H:%M')}",
-        f"*Sure:* {event.duration_minutes} dakika",
+        f"*Süre:* {event.duration_minutes} dakika",
         f"*Lokasyon:* {loc}",
     ]
     if event.link:
         lines.append(f"*Link:* <{event.link}>")
-    lines.append(f"*Duzenleyen:* <@{event.creator_slack_id}>")
+    lines.append(f"*Düzenleyen:* <@{event.creator_slack_id}>")
     builder.add_text("\n".join(lines))
 
     builder.add_divider()
-    builder.add_button("Katilacagim", "event_interest_btn", value=event.id, style="primary")
+    builder.add_button("Katılacağım", "event_interest_btn", value=event.id, style="primary")
     builder.add_button("Google Takvime Ekle", "event_calendar_btn", value=event.id, url=cal_url)
 
     blocks = builder.build()
     for ch in get_announcement_channels(event):
         try:
             slack_client.bot_client.chat_postMessage(
-                channel=ch, text=f"Etkinlik Guncellendi: {event.name}", blocks=blocks,
+                channel=ch, text=f"Etkinlik Güncellendi: {event.name}", blocks=blocks,
             )
         except Exception as e:
             _logger.error("[EVT-NOTIFY] Guncelleme duyurusu gonderilemedi channel=%s: %s", ch, e)
@@ -192,11 +192,11 @@ def post_admin_request(event: Event) -> None:
         f"*{event.name}*",
         "",
         f"*Konu:* {event.topic}",
-        f"*Aciklama:* {event.description}",
+        f"*Açıklama:* {event.description}",
         "",
         f"*Tarih:* {event.date.strftime('%d %B %Y')}",
         f"*Saat:* {event.time.strftime('%H:%M')}",
-        f"*Sure:* {event.duration_minutes} dakika",
+        f"*Süre:* {event.duration_minutes} dakika",
         f"*Lokasyon:* {loc}",
     ]
     if event.link:
@@ -209,7 +209,7 @@ def post_admin_request(event: Event) -> None:
     builder.add_divider()
     builder.add_button("Onayla", "event_approve_btn", value=event.id, style="primary")
     builder.add_button("Reddet", "event_reject_btn", value=event.id, style="danger")
-    builder.add_context([f"_{event.id} · Gonderim: {event.created_at.strftime('%d %B %Y %H:%M')}_"])
+    builder.add_context([f"_{event.id} · Gönderim: {event.created_at.strftime('%d %B %Y %H:%M')}_"])
 
     blocks = builder.build()
     try:

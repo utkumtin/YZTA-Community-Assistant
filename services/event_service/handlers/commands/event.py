@@ -44,7 +44,7 @@ def handle_event_command(ack: Ack, body: dict, client, command):
     if channel_id != settings.event_channel:
         client.chat_postMessage(
             channel=user_id,
-            text=f"Bu komut sadece <#{settings.event_channel}> kanalinda kullanilabilir."
+            text=f"Bu komut sadece <#{settings.event_channel}> kanalında kullanılabilir."
         )
         return
 
@@ -67,7 +67,7 @@ def handle_event_command(ack: Ack, body: dict, client, command):
     else:
         client.chat_postEphemeral(
             channel=channel_id, user=user_id,
-            text="Bilinmeyen komut. `/event help` ile kullanilabilir komutlari gorun."
+            text="Bilinmeyen komut. `/event help` ile kullanılabilir komutları görün."
         )
 
 
@@ -84,12 +84,12 @@ DURATION_OPTIONS = [
 ]
 
 LOCATION_OPTIONS = [
-    {"label": "Slack Kanali", "value": "slack_channel"},
+    {"label": "Slack Kanalı", "value": "slack_channel"},
     {"label": "Zoom", "value": "zoom"},
     {"label": "YouTube", "value": "youtube"},
     {"label": "Google Meet", "value": "google_meet"},
     {"label": "Discord", "value": "discord"},
-    {"label": "Diger", "value": "other"},
+    {"label": "Diğer", "value": "other"},
 ]
 
 
@@ -100,15 +100,15 @@ def _build_event_form_blocks(initial: dict | None = None) -> list[dict]:
 
     # 1. Etkinlik Adi
     name_elem = {"type": "plain_text_input", "action_id": "val",
-                 "placeholder": {"type": "plain_text", "text": "Orn: Python ile Web Scraping Workshop"}}
+                 "placeholder": {"type": "plain_text", "text": "Örn: Python ile Web Scraping Workshop"}}
     if iv.get("name"):
         name_elem["initial_value"] = iv["name"]
     blocks.append({"type": "input", "block_id": "event_name", "element": name_elem,
-                    "label": {"type": "plain_text", "text": "Etkinlik Adi"}})
+                    "label": {"type": "plain_text", "text": "Etkinlik Adı"}})
 
     # 2. Konu
     topic_elem = {"type": "plain_text_input", "action_id": "val",
-                  "placeholder": {"type": "plain_text", "text": "Orn: Web Scraping, Veri Analizi"}}
+                  "placeholder": {"type": "plain_text", "text": "Örn: Web Scraping, Veri Analizi"}}
     if iv.get("topic"):
         topic_elem["initial_value"] = iv["topic"]
     blocks.append({"type": "input", "block_id": "event_topic", "element": topic_elem,
@@ -116,15 +116,15 @@ def _build_event_form_blocks(initial: dict | None = None) -> list[dict]:
 
     # 3. Aciklama & Amac
     desc_elem = {"type": "plain_text_input", "action_id": "val", "multiline": True,
-                 "placeholder": {"type": "plain_text", "text": "Etkinligin amacini ve katilimcilara neler katacagini aciklayin..."}}
+                 "placeholder": {"type": "plain_text", "text": "Etkinliğin amacını ve katılımcılara neler katacağını açıklayın..."}}
     if iv.get("description"):
         desc_elem["initial_value"] = iv["description"]
     blocks.append({"type": "input", "block_id": "event_description", "element": desc_elem,
-                    "label": {"type": "plain_text", "text": "Aciklama & Amac"}})
+                    "label": {"type": "plain_text", "text": "Açıklama & Amaç"}})
 
     # 4. Tarih
     date_elem = {"type": "datepicker", "action_id": "val",
-                 "placeholder": {"type": "plain_text", "text": "Tarih secin..."}}
+                 "placeholder": {"type": "plain_text", "text": "Tarih seçin..."}}
     if iv.get("date"):
         date_elem["initial_date"] = iv["date"]
     blocks.append({"type": "input", "block_id": "event_date", "element": date_elem,
@@ -132,7 +132,7 @@ def _build_event_form_blocks(initial: dict | None = None) -> list[dict]:
 
     # 5. Saat
     time_elem = {"type": "timepicker", "action_id": "val",
-                 "placeholder": {"type": "plain_text", "text": "Saat secin..."}}
+                 "placeholder": {"type": "plain_text", "text": "Saat seçin..."}}
     if iv.get("time"):
         time_elem["initial_time"] = iv["time"]
     blocks.append({"type": "input", "block_id": "event_time", "element": time_elem,
@@ -141,19 +141,19 @@ def _build_event_form_blocks(initial: dict | None = None) -> list[dict]:
     # 6. Sure
     dur_opts = [{"text": {"type": "plain_text", "text": o["label"]}, "value": o["value"]} for o in DURATION_OPTIONS]
     dur_elem = {"type": "static_select", "action_id": "val",
-                "placeholder": {"type": "plain_text", "text": "Sure secin..."}, "options": dur_opts}
+                "placeholder": {"type": "plain_text", "text": "Süre seçin..."}, "options": dur_opts}
     if iv.get("duration"):
         for o in dur_opts:
             if o["value"] == iv["duration"]:
                 dur_elem["initial_option"] = o
                 break
     blocks.append({"type": "input", "block_id": "event_duration", "element": dur_elem,
-                    "label": {"type": "plain_text", "text": "Tahmini Sure"}})
+                    "label": {"type": "plain_text", "text": "Tahmini Süre"}})
 
     # 7. Etkinlik Lokasyonu
     loc_opts = [{"text": {"type": "plain_text", "text": o["label"]}, "value": o["value"]} for o in LOCATION_OPTIONS]
     loc_elem = {"type": "static_select", "action_id": "val",
-                "placeholder": {"type": "plain_text", "text": "Lokasyon secin..."}, "options": loc_opts}
+                "placeholder": {"type": "plain_text", "text": "Lokasyon seçin..."}, "options": loc_opts}
     if iv.get("location_type"):
         for o in loc_opts:
             if o["value"] == iv["location_type"]:
@@ -164,15 +164,15 @@ def _build_event_form_blocks(initial: dict | None = None) -> list[dict]:
 
     # 8. Slack Kanali (opsiyonel — backend'de validate edilir)
     ch_elem = {"type": "channels_select", "action_id": "val",
-               "placeholder": {"type": "plain_text", "text": "Kanal secin..."}}
+               "placeholder": {"type": "plain_text", "text": "Kanal seçin..."}}
     if iv.get("channel_id"):
         ch_elem["initial_channel"] = iv["channel_id"]
     blocks.append({"type": "input", "block_id": "event_channel", "optional": True, "element": ch_elem,
-                    "label": {"type": "plain_text", "text": "Slack Kanali (lokasyon Slack ise zorunlu)"}})
+                    "label": {"type": "plain_text", "text": "Slack Kanalı (lokasyon Slack ise zorunlu)"}})
 
     # 9. Etkinlik Linki (opsiyonel — backend'de validate edilir)
     link_elem = {"type": "url_text_input", "action_id": "val",
-                 "placeholder": {"type": "plain_text", "text": "Orn: https://zoom.us/j/123 veya Drive linki"}}
+                 "placeholder": {"type": "plain_text", "text": "Örn: https://zoom.us/j/123 veya Drive linki"}}
     link_val = iv.get("link")
     if link_val and isinstance(link_val, str) and (link_val.startswith("http://") or link_val.startswith("https://")):
         link_elem["initial_value"] = link_val
@@ -197,9 +197,9 @@ def _open_create_modal(client, trigger_id: str, user_id: str) -> None:
         view={
             "type": "modal",
             "callback_id": "event_create_modal",
-            "title": {"type": "plain_text", "text": "Yeni Etkinlik Olustur"},
-            "submit": {"type": "plain_text", "text": "Gonder"},
-            "close": {"type": "plain_text", "text": "Iptal"},
+            "title": {"type": "plain_text", "text": "Yeni Etkinlik Oluştur"},
+            "submit": {"type": "plain_text", "text": "Gönder"},
+            "close": {"type": "plain_text", "text": "İptal"},
             "blocks": blocks,
         },
     )
@@ -229,19 +229,19 @@ def _handle_list(client, user_id: str, channel_id: str) -> None:
         items, user_interest_ids = _run_async(_fetch())
     except Exception as e:
         _logger.error("[CMD] list failed: %s", e)
-        client.chat_postEphemeral(channel=channel_id, user=user_id, text="Etkinlikler yuklenemedi.")
+        client.chat_postEphemeral(channel=channel_id, user=user_id, text="Etkinlikler yüklenemedi.")
         return
 
     builder = MessageBuilder()
-    builder.add_header("Bu Ayin Etkinlikleri")
+    builder.add_header("Bu Ayın Etkinlikleri")
 
     if not items:
-        builder.add_text("_Bu ay henuz onaylanmis etkinlik yok._")
+        builder.add_text("_Bu ay henüz onaylanmış etkinlik yok._")
     else:
         builder.add_divider()
         for evt, count in items:
             loc = _location_with_link_inline(evt)
-            interested_marker = " · ✓ ilgi gosterdin" if evt.id in user_interest_ids else ""
+            interested_marker = " · ✓ ilgi gösterdin" if evt.id in user_interest_ids else ""
             line = (
                 f"• *{evt.name}*\n"
                 f"  {evt.date.strftime('%d %B %Y')} · {evt.time.strftime('%H:%M')} · {loc}\n"
@@ -252,7 +252,7 @@ def _handle_list(client, user_id: str, channel_id: str) -> None:
         builder.add_divider()
         builder.add_context([f"Toplam: {len(items)} etkinlik"])
 
-    client.chat_postEphemeral(channel=channel_id, user=user_id, text="Bu Ayin Etkinlikleri", blocks=builder.build())
+    client.chat_postEphemeral(channel=channel_id, user=user_id, text="Bu Ayın Etkinlikleri", blocks=builder.build())
 
 
 # ---------------------------------------------------------------------------
@@ -262,10 +262,10 @@ def _handle_list(client, user_id: str, channel_id: str) -> None:
 def _handle_my_list(client, user_id: str, channel_id: str) -> None:
     STATUS_LABELS = {
         "pending": "Onay Bekliyor",
-        "approved": "Onaylandi",
+        "approved": "Onaylandı",
         "rejected": "Reddedildi",
-        "cancelled": "Iptal Edildi",
-        "completed": "Gerceklesti",
+        "cancelled": "İptal Edildi",
+        "completed": "Gerçekleşti",
     }
 
     async def _fetch():
@@ -283,14 +283,14 @@ def _handle_my_list(client, user_id: str, channel_id: str) -> None:
         items = _run_async(_fetch())
     except Exception as e:
         _logger.error("[CMD] my_list failed: %s", e)
-        client.chat_postEphemeral(channel=channel_id, user=user_id, text="Etkinlikler yuklenemedi.")
+        client.chat_postEphemeral(channel=channel_id, user=user_id, text="Etkinlikler yüklenemedi.")
         return
 
     builder = MessageBuilder()
     builder.add_header("Etkinliklerim")
 
     if not items:
-        builder.add_text("_Henuz etkinlik olusturmadiniz._")
+        builder.add_text("_Henüz etkinlik oluşturmadınız._")
     else:
         builder.add_divider()
         for evt, count in items:
@@ -317,8 +317,8 @@ def _handle_history(client, user_id: str, channel_id: str) -> None:
     from ...utils.notifications import _location_with_link_inline
 
     STATUS_LABELS = {
-        "completed": "Gerceklesti",
-        "cancelled": "Iptal Edildi",
+        "completed": "Gerçekleşti",
+        "cancelled": "İptal Edildi",
     }
 
     async def _fetch():
@@ -338,19 +338,19 @@ def _handle_history(client, user_id: str, channel_id: str) -> None:
         items, user_interest_ids = _run_async(_fetch())
     except Exception as e:
         _logger.error("[CMD] history failed: %s", e)
-        client.chat_postEphemeral(channel=channel_id, user=user_id, text="Gecmis yuklenemedi.")
+        client.chat_postEphemeral(channel=channel_id, user=user_id, text="Geçmiş yüklenemedi.")
         return
 
     builder = MessageBuilder()
-    builder.add_header("Gecmis Etkinlikler")
+    builder.add_header("Geçmiş Etkinlikler")
 
     if not items:
-        builder.add_text("_Henuz gecmis etkinlik yok._")
+        builder.add_text("_Henüz geçmiş etkinlik yok._")
     else:
         builder.add_divider()
         for evt, count in items:
             loc = _location_with_link_inline(evt)
-            interested_marker = " · ✓ ilgi gosterdin" if evt.id in user_interest_ids else ""
+            interested_marker = " · ✓ ilgi gösterdin" if evt.id in user_interest_ids else ""
             status_label = STATUS_LABELS.get(evt.status.value, evt.status.value)
             line = (
                 f"• *{evt.name}*\n"
@@ -363,7 +363,7 @@ def _handle_history(client, user_id: str, channel_id: str) -> None:
         builder.add_divider()
         builder.add_context([f"Toplam: {len(items)} etkinlik"])
 
-    client.chat_postEphemeral(channel=channel_id, user=user_id, text="Gecmis Etkinlikler", blocks=builder.build())
+    client.chat_postEphemeral(channel=channel_id, user=user_id, text="Geçmiş Etkinlikler", blocks=builder.build())
 
 
 # ---------------------------------------------------------------------------
@@ -387,15 +387,15 @@ def _handle_add_me(client, body: dict, user_id: str, channel_id: str) -> None:
     except Exception as e:
         _logger.error("[CMD] add_me fetch failed: %s", e)
         client.chat_postEphemeral(channel=channel_id, user=user_id,
-                                   text="Etkinlikler yuklenemedi, tekrar deneyin.")
+                                   text="Etkinlikler yüklenemedi, tekrar deneyin.")
         return
 
     if not events:
         client.chat_postEphemeral(
             channel=channel_id, user=user_id,
             text=(
-                "Onumuzdeki 1 ay icinde ilgi gosterebileceginiz etkinlik yok.\n"
-                "Tum etkinlikleri gormek icin `/event list` komutunu kullanin."
+                "Önümüzdeki 1 ay içinde ilgi gösterebileceğiniz etkinlik yok.\n"
+                "Tüm etkinlikleri görmek için `/event list` komutunu kullanın."
             ),
         )
         return
@@ -436,9 +436,9 @@ def _handle_add_me(client, body: dict, user_id: str, channel_id: str) -> None:
             "type": "modal",
             "callback_id": "event_add_me_modal",
             "private_metadata": _json.dumps({"channel_id": channel_id}),
-            "title": {"type": "plain_text", "text": "Etkinlige Ilgi Goster"},
-            "submit": {"type": "plain_text", "text": "Ilgi Goster"},
-            "close": {"type": "plain_text", "text": "Iptal"},
+            "title": {"type": "plain_text", "text": "Etkinliğe İlgi Göster"},
+            "submit": {"type": "plain_text", "text": "İlgi Göster"},
+            "close": {"type": "plain_text", "text": "İptal"},
             "blocks": [
                 {
                     "type": "input",
@@ -446,17 +446,17 @@ def _handle_add_me(client, body: dict, user_id: str, channel_id: str) -> None:
                     "element": {
                         "type": "static_select",
                         "action_id": "val",
-                        "placeholder": {"type": "plain_text", "text": "Etkinlik secin..."},
+                        "placeholder": {"type": "plain_text", "text": "Etkinlik seçin..."},
                         "options": options,
                     },
-                    "label": {"type": "plain_text", "text": "Ilgi Gosterilecek Etkinlik"},
+                    "label": {"type": "plain_text", "text": "İlgi Gösterilecek Etkinlik"},
                 },
                 {
                     "type": "context",
                     "elements": [
                         {
                             "type": "mrkdwn",
-                            "text": "_Onumuzdeki 1 ay icinde gerceklesecek ve henuz ilgi gostermediginiz etkinlikler._",
+                            "text": "_Önümüzdeki 1 ay içinde gerçekleşecek ve henüz ilgi göstermediğiniz etkinlikler._",
                         }
                     ],
                 },
@@ -485,12 +485,12 @@ def _handle_cancel(client, body: dict, user_id: str, channel_id: str) -> None:
         events = _run_async(_fetch_events())
     except Exception as e:
         _logger.error("[CMD] cancel fetch failed: %s", e)
-        client.chat_postEphemeral(channel=channel_id, user=user_id, text="Etkinlikler yuklenemedi.")
+        client.chat_postEphemeral(channel=channel_id, user=user_id, text="Etkinlikler yüklenemedi.")
         return
 
     if not events:
         client.chat_postEphemeral(channel=channel_id, user=user_id,
-                                   text="Iptal edilebilecek aktif etkinliginiz yok.")
+                                   text="İptal edilebilecek aktif etkinliğiniz yok.")
         return
 
     # Kullanici adlarini Slack API'den cek (cache)
@@ -528,9 +528,9 @@ def _handle_cancel(client, body: dict, user_id: str, channel_id: str) -> None:
         view={
             "type": "modal",
             "callback_id": "event_cancel_modal",
-            "title": {"type": "plain_text", "text": "Etkinlik Iptal Et"},
-            "submit": {"type": "plain_text", "text": "Etkinligi Iptal Et"},
-            "close": {"type": "plain_text", "text": "Iptal"},
+            "title": {"type": "plain_text", "text": "Etkinlik İptal Et"},
+            "submit": {"type": "plain_text", "text": "Etkinliği İptal Et"},
+            "close": {"type": "plain_text", "text": "İptal"},
             "blocks": [
                 {
                     "type": "input",
@@ -538,10 +538,10 @@ def _handle_cancel(client, body: dict, user_id: str, channel_id: str) -> None:
                     "element": {
                         "type": "static_select",
                         "action_id": "val",
-                        "placeholder": {"type": "plain_text", "text": "Etkinlik secin..."},
+                        "placeholder": {"type": "plain_text", "text": "Etkinlik seçin..."},
                         "options": options,
                     },
-                    "label": {"type": "plain_text", "text": "Iptal Edilecek Etkinlik"},
+                    "label": {"type": "plain_text", "text": "İptal Edilecek Etkinlik"},
                 },
             ],
         },
@@ -568,12 +568,12 @@ def _handle_update(client, body: dict, user_id: str, channel_id: str) -> None:
         events = _run_async(_fetch_events())
     except Exception as e:
         _logger.error("[CMD] update fetch failed: %s", e)
-        client.chat_postEphemeral(channel=channel_id, user=user_id, text="Etkinlikler yuklenemedi.")
+        client.chat_postEphemeral(channel=channel_id, user=user_id, text="Etkinlikler yüklenemedi.")
         return
 
     if not events:
         client.chat_postEphemeral(channel=channel_id, user=user_id,
-                                   text="Guncellenebilecek aktif etkinliginiz yok.")
+                                   text="Güncellenebilecek aktif etkinliğiniz yok.")
         return
 
     # Kullanici adlarini Slack API'den cek (cache)
@@ -610,9 +610,9 @@ def _handle_update(client, body: dict, user_id: str, channel_id: str) -> None:
         view={
             "type": "modal",
             "callback_id": "event_update_select_modal",
-            "title": {"type": "plain_text", "text": "Etkinlik Guncelle"},
+            "title": {"type": "plain_text", "text": "Etkinlik Güncelle"},
             "submit": {"type": "plain_text", "text": "Devam"},
-            "close": {"type": "plain_text", "text": "Iptal"},
+            "close": {"type": "plain_text", "text": "İptal"},
             "blocks": [
                 {
                     "type": "input",
@@ -620,10 +620,10 @@ def _handle_update(client, body: dict, user_id: str, channel_id: str) -> None:
                     "element": {
                         "type": "static_select",
                         "action_id": "val",
-                        "placeholder": {"type": "plain_text", "text": "Etkinlik secin..."},
+                        "placeholder": {"type": "plain_text", "text": "Etkinlik seçin..."},
                         "options": options,
                     },
-                    "label": {"type": "plain_text", "text": "Guncellenecek Etkinlik"},
+                    "label": {"type": "plain_text", "text": "Güncellenecek Etkinlik"},
                 },
             ],
         },
@@ -636,27 +636,27 @@ def _handle_update(client, body: dict, user_id: str, channel_id: str) -> None:
 
 def _handle_help(client, user_id: str, channel_id: str) -> None:
     builder = MessageBuilder()
-    builder.add_header("Event Komutlari")
+    builder.add_header("Event Komutları")
     builder.add_text(
         "*`/event create`*\n"
-        "Yeni etkinlik talebi olustur. Form acilir, admin onayindan sonra duyuru yapilir.\n\n"
+        "Yeni etkinlik talebi oluştur. Form açılır, admin onayından sonra duyuru yapılır.\n\n"
         "*`/event list`*\n"
-        "Bu ayin yaklasan etkinliklerini listele.\n\n"
+        "Bu ayın yaklaşan etkinliklerini listele.\n\n"
         "*`/event my_list`*\n"
-        "Kendi olusturdugum etkinlikleri listele.\n\n"
+        "Kendi oluşturduğum etkinlikleri listele.\n\n"
         "*`/event history`*\n"
-        "Gecmis etkinlikleri goruntule.\n\n"
+        "Geçmiş etkinlikleri görüntüle.\n\n"
         "*`/event add_me`*\n"
-        "Ilgi formu acar. Onumuzdeki 1 ay icinde gerceklesecek ve henuz ilgi gostermediginiz "
-        "etkinlikler listelenir. Her etkinlige 1 kez ilgi gosterilebilir.\n\n"
+        "İlgi formu açar. Önümüzdeki 1 ay içinde gerçekleşecek ve henüz ilgi göstermediğiniz "
+        "etkinlikler listelenir. Her etkinliğe 1 kez ilgi gösterilebilir.\n\n"
         "*`/event update`*\n"
-        "Guncelleme formu acar. Sahip kendi eventlerini, admin tum aktif eventleri gorup guncelleyebilir.\n\n"
+        "Güncelleme formu açar. Sahip kendi etkinliklerini, admin tüm aktif etkinlikleri görüp güncelleyebilir.\n\n"
         "*`/event cancel`*\n"
-        "Iptal formu acar. Sahip kendi eventlerini, admin tum aktif eventleri gorup iptal edebilir.\n\n"
+        "İptal formu açar. Sahip kendi etkinliklerini, admin tüm aktif etkinlikleri görüp iptal edebilir.\n\n"
         "*`/event help`*\n"
-        "Bu yardim mesajini goster."
+        "Bu yardım mesajını göster."
     )
     builder.add_divider()
-    builder.add_context(["_Etkinlik ID'sini `/event list` ile ogrenebilirsin_"])
+    builder.add_context(["_Etkinlik ID'sini `/event list` ile öğrenebilirsin_"])
 
-    client.chat_postEphemeral(channel=channel_id, user=user_id, text="Event Komutlari", blocks=builder.build())
+    client.chat_postEphemeral(channel=channel_id, user=user_id, text="Event Komutları", blocks=builder.build())

@@ -9,7 +9,7 @@ from packages.database.manager import db
 from packages.database.repository.slack import SlackUserRepository
 from packages.settings import get_settings
 from packages.smtp.client import SmtpClient
-from packages.smtp.schema import EmailSchema
+from packages.smtp.schema import EmailMessage
 from packages.database.models.event import Event, LocationType
 from ..logger import _logger
 
@@ -32,12 +32,12 @@ def _location_label(event: Event) -> str:
     """E-posta icin okunabilir lokasyon metni."""
     loc = event.location_type
     display = {
-        LocationType.SLACK_CHANNEL: "Slack Kanali",
+        LocationType.SLACK_CHANNEL: "Slack Kanalı",
         LocationType.ZOOM: "Zoom",
         LocationType.YOUTUBE: "YouTube",
         LocationType.GOOGLE_MEET: "Google Meet",
         LocationType.DISCORD: "Discord",
-        LocationType.OTHER: "Diger",
+        LocationType.OTHER: "Diğer",
     }
     return display.get(loc, str(loc))
 
@@ -91,9 +91,9 @@ def send_admin_notification(event: Event) -> None:
         body = (
             f"Etkinlik: {event.name}\n"
             f"Konu: {event.topic}\n"
-            f"Aciklama: {event.description}\n"
+            f"Açıklama: {event.description}\n"
             f"Tarih: {event.date} {event.time}\n"
-            f"Sure: {event.duration_minutes} dakika\n"
+            f"Süre: {event.duration_minutes} dakika\n"
             f"Lokasyon: {loc_label}\n"
             f"Link: {event.link or '—'}\n"
             f"YZTA Talep: {event.yzta_request or '—'}\n"
@@ -155,11 +155,11 @@ async def send_reminder_email_async(slack_id: str, event: Event, reminder_type: 
         if reminder_type == "10min":
             subject = f"10 Dakika Sonra: {event.name}"
         else:
-            subject = f"Bugun: {event.name}"
+            subject = f"Bugün: {event.name}"
         body = (
             f"Etkinlik: {event.name}\n"
             f"Saat: {event.time.strftime('%H:%M')}\n"
-            f"Sure: {event.duration_minutes} dakika\n"
+            f"Süre: {event.duration_minutes} dakika\n"
             f"Link: {event.link or '—'}\n"
         )
         schema = EmailSchema(to=user_email, subject=subject, body=body)
@@ -185,7 +185,7 @@ async def send_user_status_email_async(slack_id: str, event: Event, status: str,
 
 def _send_status_email(smtp: SmtpClient, user_email: str, event: Event, status: str, admin_note: str | None) -> None:
     try:
-        status_text = {"approved": "Onaylandi", "rejected": "Reddedildi", "timeout": "Zaman Asimi"}.get(status, status)
+        status_text = {"approved": "Onaylandı", "rejected": "Reddedildi", "timeout": "Zaman Aşımı"}.get(status, status)
         subject = f"Etkinlik {status_text}: {event.name}"
         body = (
             f"Etkinlik: {event.name}\n"
@@ -202,11 +202,11 @@ def _send_status_email(smtp: SmtpClient, user_email: str, event: Event, status: 
 
 def _send_cancellation(smtp: SmtpClient, user_email: str, event: Event) -> None:
     try:
-        subject = f"Etkinlik Iptal Edildi: {event.name}"
+        subject = f"Etkinlik İptal Edildi: {event.name}"
         body = (
             f"Etkinlik: {event.name}\n"
             f"Tarih: {event.date} {event.time}\n"
-            f"Bu etkinlik iptal edilmistir.\n"
+            f"Bu etkinlik iptal edilmiştir.\n"
         )
         schema = EmailSchema(to=user_email, subject=subject, body=body)
         smtp.send(schema)
@@ -216,13 +216,13 @@ def _send_cancellation(smtp: SmtpClient, user_email: str, event: Event) -> None:
 
 def _send_update(smtp: SmtpClient, user_email: str, event: Event) -> None:
     try:
-        subject = f"Etkinlik Guncellendi: {event.name}"
+        subject = f"Etkinlik Güncellendi: {event.name}"
         body = (
             f"Etkinlik: {event.name}\n"
             f"Tarih: {event.date} {event.time}\n"
-            f"Sure: {event.duration_minutes} dakika\n"
+            f"Süre: {event.duration_minutes} dakika\n"
             f"Link: {event.link or '—'}\n"
-            f"Etkinlik bilgileri guncellenmistir. Detaylar icin Slack kanalini kontrol edin.\n"
+            f"Etkinlik bilgileri güncellenmiştir. Detaylar için Slack kanalını kontrol edin.\n"
         )
         schema = EmailSchema(to=user_email, subject=subject, body=body)
         smtp.send(schema)

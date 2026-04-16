@@ -73,12 +73,12 @@ class EventScheduler:
                 _logger.info("[SCHED] Timeout: %s", evt.id)
                 send_dm(
                     evt.creator_slack_id,
-                    f"Etkinlik Talebiniz Zaman Asimina Ugradi\n\n"
+                    f"Etkinlik Talebiniz Zaman Aşımına Uğradı\n\n"
                     f"*{evt.name}*\n"
                     f"{evt.date.strftime('%d %B %Y')} · {evt.time.strftime('%H:%M')}\n\n"
-                    f"Talebiniz {s.event_approval_timeout_hours // 24} gun icinde yanit alamadigi icin "
+                    f"Talebiniz {s.event_approval_timeout_hours // 24} gün içinde yanıt alamadığı için "
                     f"otomatik olarak reddedildi.\n\n"
-                    f"Yeni bir etkinlik talebi icin `/event create` komutunu kullanabilirsiniz.\n_{evt.id}_"
+                    f"Yeni bir etkinlik talebi için `/event create` komutunu kullanabilirsiniz.\n_{evt.id}_"
                 )
                 await send_user_status_email_async(evt.creator_slack_id, evt, "timeout")
 
@@ -122,7 +122,7 @@ class EventScheduler:
             interest_repo = EventInterestRepository(session)
 
             builder = MessageBuilder()
-            builder.add_header(f"Bugunun Etkinlikleri — {utc_today.strftime('%d %B %Y')}")
+            builder.add_header(f"Bugünün Etkinlikleri — {utc_today.strftime('%d %B %Y')}")
             builder.add_divider()
 
             # E-posta gonderilecek ilgili kullanicilari topla
@@ -136,10 +136,10 @@ class EventScheduler:
                 builder.add_text(
                     f"*{i}. {evt.name}*\n"
                     f"{evt.time.strftime('%H:%M')} · {evt.duration_minutes} dk · {loc}\n"
-                    f"<@{evt.creator_slack_id}> · {count} kisi ilgi gosterdi"
+                    f"<@{evt.creator_slack_id}> · {count} kişi ilgi gösterdi"
                 )
                 if evt.link:
-                    builder.add_button("Katil", f"event_link_{evt.id}", url=evt.link)
+                    builder.add_button("Katıl", f"event_link_{evt.id}", url=evt.link)
                 builder.add_button("Google Takvime Ekle", f"event_cal_{evt.id}", url=cal_url)
                 builder.add_divider()
 
@@ -148,7 +148,7 @@ class EventScheduler:
                 for interest in interests:
                     interested_users.append((interest.slack_id, evt))
 
-            builder.add_context(["_Iyi etkinlikler!_"])
+            builder.add_context(["_İyi etkinlikler!_"])
             blocks = builder.build()
 
             # Tum duyuru kanallarini topla (tekrarsiz)
@@ -160,7 +160,7 @@ class EventScheduler:
                 try:
                     slack_client.bot_client.chat_postMessage(
                         channel=ch,
-                        text=f"Bugunun Etkinlikleri — {utc_today.strftime('%d %B %Y')}",
+                        text=f"Bugünün Etkinlikleri — {utc_today.strftime('%d %B %Y')}",
                         blocks=blocks,
                     )
                 except Exception as e:
@@ -216,17 +216,17 @@ class EventScheduler:
             cal_url = _calendar_url(evt)
 
             builder = MessageBuilder()
-            builder.add_header("10 Dakika Sonra Basliyor!")
+            builder.add_header("10 Dakika Sonra Başlıyor!")
             builder.add_text(
                 f"*{evt.name}*\n\n"
                 f"*Saat:* {evt.time.strftime('%H:%M')}\n"
-                f"*Sure:* {evt.duration_minutes} dakika\n"
+                f"*Süre:* {evt.duration_minutes} dakika\n"
                 f"*Lokasyon:* {loc}\n"
-                f"*Duzenleyen:* <@{evt.creator_slack_id}>\n"
-                f"*Ilgi:* {count} kisi"
+                f"*Düzenleyen:* <@{evt.creator_slack_id}>\n"
+                f"*İlgi:* {count} kişi"
             )
             if evt.link:
-                builder.add_button("Katil", "event_10min_link", url=evt.link)
+                builder.add_button("Katıl", "event_10min_link", url=evt.link)
             builder.add_button("Google Takvime Ekle", "event_10min_cal", url=cal_url)
 
             blocks = builder.build()
