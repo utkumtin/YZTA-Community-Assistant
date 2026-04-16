@@ -25,6 +25,19 @@ def _location_display(event: Event) -> str:
     return display.get(loc, str(loc))
 
 
+def _location_with_link_inline(event: Event) -> str:
+    """
+    Liste gosterimi icin lokasyon + inline link.
+    Slack kanali: <#C123>
+    Harici platform + link: "Zoom (<https://...|Link>)"
+    Harici platform, link yok: "Zoom"
+    """
+    base = _location_display(event)
+    if event.location_type != LocationType.SLACK_CHANNEL and event.link:
+        return f"{base} (<{event.link}|Link>)"
+    return base
+
+
 def _calendar_location(event: Event) -> str:
     """Google Calendar icin mekan bilgisi: Slack kanaliysa kanal adi, degilse link."""
     if event.location_type == LocationType.SLACK_CHANNEL and event.channel_id:

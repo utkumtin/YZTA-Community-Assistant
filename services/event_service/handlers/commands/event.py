@@ -210,19 +210,23 @@ def _open_create_modal(client, trigger_id: str, user_id: str) -> None:
 # ---------------------------------------------------------------------------
 
 def _handle_list(client, user_id: str, channel_id: str) -> None:
+    from ...utils.notifications import _location_with_link_inline
+
     async def _fetch():
         async with db.session(read_only=True) as session:
             repo = EventRepository(session)
             events = await repo.list_current_month()
             interest_repo = EventInterestRepository(session)
+            # Kullanicinin ilgi gosterdigi event ID'lerini tek sorguyla al (N+1 onleme)
+            user_interest_ids = await interest_repo.set_event_ids_by_user(user_id)
             result = []
             for evt in events:
                 count = await interest_repo.count_by_event(evt.id)
                 result.append((evt, count))
-            return result
+            return result, user_interest_ids
 
     try:
-        items = _run_async(_fetch())
+        items, user_interest_ids = _run_async(_fetch())
     except Exception as e:
         _logger.error("[CMD] list failed: %s", e)
         client.chat_postEphemeral(channel=channel_id, user=user_id, text="Etkinlikler yuklenemedi.")
@@ -236,17 +240,17 @@ def _handle_list(client, user_id: str, channel_id: str) -> None:
     else:
         builder.add_divider()
         for evt, count in items:
-            loc = _location_display(evt)
+            loc = _location_with_link_inline(evt)
+            interested_marker = " · ✓ ilgi gosterdin" if evt.id in user_interest_ids else ""
             line = (
-                f"• *{evt.id}* | *{evt.name}*\n"
-                f"  <@{evt.creator_slack_id}> · {evt.date.strftime('%d %B')} {evt.time.strftime('%H:%M')} · {loc}"
+                f"• *{evt.name}*\n"
+                f"  {evt.date.strftime('%d %B %Y')} · {evt.time.strftime('%H:%M')} · {loc}\n"
+                f"  {evt.description}\n"
+                f"  <@{evt.creator_slack_id}>  · {count} ilgili{interested_marker}"
             )
-            if evt.link:
-                line += f"\n  <{evt.link}|Link>"
-            line += f" · {count} ilgili"
             builder.add_text(line)
         builder.add_divider()
-        builder.add_context([f"_Toplam: {len(items)} etkinlik_"])
+        builder.add_context([f"Toplam: {len(items)} etkinlik"])
 
     client.chat_postEphemeral(channel=channel_id, user=user_id, text="Bu Ayin Etkinlikleri", blocks=builder.build())
 

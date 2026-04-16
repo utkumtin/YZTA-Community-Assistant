@@ -139,3 +139,13 @@ class EventInterestRepository(BaseRepository[EventInterest]):
             select(EventInterest).where(EventInterest.event_id == event_id)
         )
         return list(result.scalars().all())
+
+    async def set_event_ids_by_user(self, slack_id: str) -> set[str]:
+        """
+        Kullanicinin ilgi gosterdigi tum event ID'lerini tek sorguyla doner.
+        N+1 query pattern'ini onlemek icin list'lerde kullanilir.
+        """
+        result = await self.session.execute(
+            select(EventInterest.event_id).where(EventInterest.slack_id == slack_id)
+        )
+        return {row[0] for row in result.all()}
