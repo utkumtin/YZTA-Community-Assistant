@@ -100,30 +100,44 @@ Format: emoji yok, event ID yok. Her etkinlik 4 satirda gosterilir:
 
 **`/event history` (ephemeral):**
 
+`/event list` ile ayni format — ek olarak her etkinligin altina durum satiri eklenir. Durum italik olarak gosterilir: `_Gerceklesti_` veya `_Iptal Edildi_`. History komutu sadece `COMPLETED` ve `CANCELLED` statusundeki etkinlikleri getirir.
+
 ```
 ┌─ Event Bot (sadece sana gorunur) ──────────────────┐
 │                                                     │
-│  📋 Gecmis Etkinlikler                               │
-│                                                     │
+│  Gecmis Etkinlikler                                  │
 │  ─────────────────────────────────────────────      │
 │                                                     │
-│  • #EVT-x1y2 | *React Hooks Sunumu*                 │
-│    👤 @ayse · 📅 10 Mart 20:00 · 📍 Zoom            │
-│    ✅ Gerceklesti · 🙋 12 ilgili                     │
+│  • *React Hooks Sunumu*                              │
+│    10 Mart 2026 · 20:00 · Zoom (<zoom.us/j/abc|Link>)│
+│    React Hooks'un temel ve ileri seviye kullanimi.  │
+│    <@U789>  · 12 ilgili · ✓ ilgi gosterdin          │
+│    _Gerceklesti_                                     │
 │                                                     │
-│  • #EVT-z3w4 | *Git Workshop*                        │
-│    👤 @can · 📅 3 Mart 18:00 · 📍 #genel            │
-│    ❌ Iptal Edildi                                    │
+│  • *Git Workshop*                                    │
+│    3 Mart 2026 · 18:00 · <#C456>                    │
+│    Git temelleri ve branch stratejileri workshop'u. │
+│    <@UABC>  · 4 ilgili                              │
+│    _Iptal Edildi_                                    │
 │                                                     │
-│  • #EVT-m5n6 | *API Design Sohbeti*                 │
-│    👤 @ahmet · 📅 20 Subat 21:00 · 📍 Google Meet   │
-│    ✅ Gerceklesti · 🙋 7 ilgili                      │
+│  • *API Design Sohbeti*                              │
+│    20 Subat 2026 · 21:00 · Google Meet (<meet.g.co/xyz|Link>)│
+│    REST vs GraphQL karsilastirmasi.                 │
+│    <@U123>  · 7 ilgili                              │
+│    _Gerceklesti_                                     │
 │                                                     │
 │  ─────────────────────────────────────────────      │
-│  _Toplam: 3 etkinlik_                               │
+│  Toplam: 3 etkinlik                                  │
 │                                                     │
 └─────────────────────────────────────────────────────┘
 ```
+
+**Durum gosterimleri:**
+
+| Status | Gosterim |
+|--------|----------|
+| `COMPLETED` | `_Gerceklesti_` |
+| `CANCELLED` | `_Iptal Edildi_` |
 
 **`/event help` (ephemeral):**
 
