@@ -219,6 +219,8 @@ def _handle_list(client, user_id: str, channel_id: str) -> None:
             interest_repo = EventInterestRepository(session)
             # Kullanicinin ilgi gosterdigi event ID'lerini tek sorguyla al (N+1 onleme)
             user_interest_ids = await interest_repo.set_event_ids_by_user(user_id)
+            # Tarihsel sira (ASC): en yakin tarih once
+            events = sorted(events, key=lambda e: (e.date, e.time))
             result = []
             for evt in events:
                 count = await interest_repo.count_by_event(evt.id)
@@ -328,6 +330,8 @@ def _handle_history(client, user_id: str, channel_id: str) -> None:
             interest_repo = EventInterestRepository(session)
             # Kullanicinin ilgi gosterdigi event ID'lerini tek sorguyla al (N+1 onleme)
             user_interest_ids = await interest_repo.set_event_ids_by_user(user_id)
+            # Tarihsel sira (DESC): en yeni tarih once
+            events = sorted(events, key=lambda e: (e.date, e.time), reverse=True)
             result = []
             for evt in events:
                 count = await interest_repo.count_by_event(evt.id)
