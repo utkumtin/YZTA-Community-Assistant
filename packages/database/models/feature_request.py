@@ -7,14 +7,14 @@ Feature Request Modelleri
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from pgvector.sqlalchemy import Vector
 
 from packages.database.mixins import Base, IDMixin, TimestampMixin
 
 if TYPE_CHECKING:
-    from packages.database.models.user import User
+    from packages.database.models.slack import SlackUser
 
 
 class FeatureRequest(Base, IDMixin, TimestampMixin):
@@ -26,20 +26,22 @@ class FeatureRequest(Base, IDMixin, TimestampMixin):
     __prefix__ = "FRQ"
 
     user_id: Mapped[str] = mapped_column(
-        ForeignKey("users.id"), nullable=False, index=True
+        String(32), ForeignKey("slack_users.slack_id"), nullable=False, index=True
     )
     request_raw: Mapped[str] = mapped_column(Text, nullable=False)
-    request_embedded: Mapped[list[float]] = mapped_column(Vector(768), nullable=True)
+    request_embedded: Mapped[list[float] | None] = mapped_column(
+        Vector(768), nullable=True
+    )
 
     # embedded | clustered | reported | embedding_failed | clustering_failed
     status: Mapped[str] = mapped_column(
         String, default="embedded", nullable=False, index=True
     )
 
-    cluster_id: Mapped[int] = mapped_column(Integer, nullable=True)
-    fraud_score: Mapped[float] = mapped_column(Float, nullable=True)
+    cluster_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    fraud_score: Mapped[float | None] = mapped_column(Float, nullable=True)
 
-    user: Mapped["User"] = relationship("User", backref="feature_requests")
+    user: Mapped["SlackUser"] = relationship("SlackUser", backref="feature_requests")
 
     def __repr__(self) -> str:
         return (

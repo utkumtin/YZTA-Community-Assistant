@@ -30,8 +30,10 @@ def _svc():
 @app.command("/cemilimyapar")
 def handle_cemilimyapar(ack, body, client):
     ack()
+    channel_id = body.get("channel_id", "")
     client.views_open(
-        trigger_id=body["trigger_id"], view=Layouts.feature_request_modal()
+        trigger_id=body["trigger_id"],
+        view=Layouts.feature_request_modal(channel_id=channel_id),
     )
 
 

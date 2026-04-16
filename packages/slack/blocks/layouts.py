@@ -178,7 +178,7 @@ class Layouts:
         return blocks
 
     @staticmethod
-    def feature_request_modal() -> Dict:
+    def feature_request_modal(channel_id: str = "") -> Dict:
         """
         /cemilimyapar komutuyla açılan özellik talebi modal'ı.
         Dönen değer bir blok listesi değil, modal dict'idir (views_open'a verilir).
@@ -186,6 +186,7 @@ class Layouts:
         return {
             "type": "modal",
             "callback_id": "feature_request_modal",
+            "private_metadata": channel_id,
             "title": {"type": "plain_text", "text": "Özellik Talebi", "emoji": True},
             "submit": {"type": "plain_text", "text": "Gönder 🚀", "emoji": True},
             "close": {"type": "plain_text", "text": "İptal", "emoji": True},
@@ -226,7 +227,9 @@ class Layouts:
         }
 
     @staticmethod
-    def feature_request_edit_modal(existing_text: str, request_id: str) -> Dict:
+    def feature_request_edit_modal(
+        existing_text: str, request_id: str, channel_id: str = ""
+    ) -> Dict:
         """
         'Evet, düzenleyeyim' butonuyla açılan düzenleme modal'ı.
         request_id, private_metadata olarak saklanır.
@@ -235,7 +238,7 @@ class Layouts:
         return {
             "type": "modal",
             "callback_id": "feature_request_edit_modal",
-            "private_metadata": request_id,
+            "private_metadata": f"{request_id}|{channel_id}",
             "title": {"type": "plain_text", "text": "Fikri Düzenle ✏️", "emoji": True},
             "submit": {"type": "plain_text", "text": "Güncelle ✅", "emoji": True},
             "close": {"type": "plain_text", "text": "Vazgeç", "emoji": True},

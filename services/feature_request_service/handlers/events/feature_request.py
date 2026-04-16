@@ -3,6 +3,7 @@
 import logging
 
 from packages.database.manager import db
+from packages.settings import get_settings
 from packages.slack.blocks.layouts import Layouts
 from packages.slack.client import slack_client
 from services.feature_request_service.core.event_loop import run_async
@@ -28,6 +29,10 @@ def _svc():
 def handle_submit(ack, body, client):
     ack()
     uid = body["user"]["id"]
+    channel_id = body["view"].get("private_metadata", "")
+    if not channel_id:
+        channel_id = get_settings().slack_command_channels[0]
+
     raw = body["view"]["state"]["values"]["feature_input_block"]["feature_text_input"][
         "value"
     ]
@@ -36,7 +41,7 @@ def handle_submit(ack, body, client):
     except Exception as e:
         logger.error(f"Submit hatası: {e}", exc_info=True)
         send_notification(
-            client, uid, uid, NotificationType.ACTION_RESULT, "❌ Teknik hata."
+            client, uid, channel_id, NotificationType.ACTION_RESULT, "❌ Teknik hata."
         )
         return
     match r.get("status"):
@@ -44,7 +49,7 @@ def handle_submit(ack, body, client):
             send_notification(
                 client,
                 uid,
-                uid,
+                channel_id,
                 NotificationType.ACTION_RESULT,
                 "Kaydedildi!",
                 Layouts.feature_request_success(raw),
@@ -53,7 +58,7 @@ def handle_submit(ack, body, client):
             send_notification(
                 client,
                 uid,
-                uid,
+                channel_id,
                 NotificationType.ACTION_RESULT,
                 "Benzer var.",
                 Layouts.feature_request_similar(r["existing_text"], r["existing_id"]),
@@ -62,7 +67,7 @@ def handle_submit(ack, body, client):
             send_notification(
                 client,
                 uid,
-                uid,
+                channel_id,
                 NotificationType.ACTION_RESULT,
                 "Hak doldu.",
                 Layouts.feature_request_quota_exceeded(r["used"], r["max"]),
@@ -73,7 +78,13 @@ def handle_submit(ack, body, client):
 def handle_edit_submit(ack, body, client):
     ack()
     uid = body["user"]["id"]
-    rid = body["view"]["private_metadata"]
+    metadata = body["view"].get("private_metadata", "")
+    parts = metadata.split("|")
+    rid = parts[0]
+    channel_id = parts[1] if len(parts) > 1 else ""
+    if not channel_id:
+        channel_id = get_settings().slack_command_channels[0]
+
     txt = body["view"]["state"]["values"]["feature_input_block"]["feature_text_input"][
         "value"
     ]
@@ -82,7 +93,7 @@ def handle_edit_submit(ack, body, client):
         send_notification(
             client,
             uid,
-            uid,
+            channel_id,
             NotificationType.ACTION_RESULT,
             "Güncellendi!",
             Layouts.feature_request_success(txt),
@@ -90,7 +101,11 @@ def handle_edit_submit(ack, body, client):
     except Exception as e:
         logger.error(f"Edit hatası: {e}", exc_info=True)
         send_notification(
-            client, uid, uid, NotificationType.ACTION_RESULT, "❌ Güncelleme hatası."
+            client,
+            uid,
+            channel_id,
+            NotificationType.ACTION_RESULT,
+            "❌ Güncelleme hatası.",
         )
 
 
@@ -98,11 +113,12 @@ def handle_edit_submit(ack, body, client):
 def handle_edit_yes(ack, body, client):
     ack()
     rid = body["actions"][0]["value"]
+    channel_id = body.get("channel", {}).get("id", "")
     try:
         txt = run_async(_svc().get_request_text(rid))
         client.views_open(
             trigger_id=body["trigger_id"],
-            view=Layouts.feature_request_edit_modal(txt, rid),
+            view=Layouts.feature_request_edit_modal(txt, rid, channel_id),
         )
     except Exception as e:
         logger.error(f"Edit modal hatası: {e}", exc_info=True)
@@ -112,10 +128,14 @@ def handle_edit_yes(ack, body, client):
 def handle_edit_no(ack, body, client):
     ack()
     uid = body["user"]["id"]
+    channel_id = body.get("channel", {}).get("id", "")
+    if not channel_id:
+        channel_id = get_settings().slack_command_channels[0]
+
     send_notification(
         client,
         uid,
-        uid,
+        channel_id,
         NotificationType.ACTION_RESULT,
         "Tamam! `/cemilimyapar` ile yeni fikir gönderebilirsin. 💡",
     )

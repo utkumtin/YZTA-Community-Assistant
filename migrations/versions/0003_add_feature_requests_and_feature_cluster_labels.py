@@ -34,16 +34,13 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_feature_cluster_labels")),
-    )
-    op.create_index(
-        op.f("ix_feature_cluster_labels_cluster_id"),
-        "feature_cluster_labels",
-        ["cluster_id"],
-        unique=True,
+        sa.UniqueConstraint(
+            "cluster_id", name=op.f("uq_feature_cluster_labels_cluster_id")
+        ),
     )
     op.create_table(
         "feature_requests",
-        sa.Column("user_id", sa.String(length=60), nullable=False),
+        sa.Column("user_id", sa.String(length=32), nullable=False),
         sa.Column("request_raw", sa.Text(), nullable=False),
         sa.Column("request_embedded", Vector(768), nullable=True),
         sa.Column("status", sa.String(), nullable=False),
@@ -53,7 +50,9 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(
-            ["user_id"], ["users.id"], name=op.f("fk_feature_requests_user_id_users")
+            ["user_id"],
+            ["slack_users.slack_id"],
+            name=op.f("fk_feature_requests_user_id_slack_users"),
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_feature_requests")),
     )
@@ -103,7 +102,11 @@ def downgrade() -> None:
     )
     op.drop_index(op.f("ix_feature_requests_user_id"), table_name="feature_requests")
     op.drop_index(op.f("ix_feature_requests_status"), table_name="feature_requests")
-    op.drop_index(op.f("ix_feature_cluster_labels_cluster_id"), table_name="feature_cluster_labels")
+    op.drop_constraint(
+        op.f("uq_feature_cluster_labels_cluster_id"),
+        table_name="feature_cluster_labels",
+        type_="unique",
+    )
     op.drop_table("feature_requests")
     op.drop_table("feature_cluster_labels")
     # ### end Alembic commands ###
