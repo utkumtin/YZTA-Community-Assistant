@@ -656,7 +656,7 @@ Bolum 3.3'te tanimlandigi gibi otomatik belirlenir:
 │  │  🕐 20:00 · ⏱ 1.5 saat · 📍 Zoom             │    │
 │  │  👤 @ahmet · 🙋 5 kisi ilgi gosterdi          │    │
 │  │                                               │    │
-│  │  [🔗 Katil]  [📅 Takvime Ekle]                │    │
+│  │  [🔗 Katil]  [📅 Google Takvime Ekle]         │    │
 │  │                                               │    │
 │  │  ─────────────────────────────────────────    │    │
 │  │                                               │    │
@@ -664,7 +664,7 @@ Bolum 3.3'te tanimlandigi gibi otomatik belirlenir:
 │  │  🕐 21:30 · ⏱ 1 saat · 📍 #frontend-kanal    │    │
 │  │  👤 @ayse · 🙋 3 kisi ilgi gosterdi           │    │
 │  │                                               │    │
-│  │  [🔗 Kanala Git]  [📅 Takvime Ekle]           │    │
+│  │  [🔗 Kanala Git]  [📅 Google Takvime Ekle]    │    │
 │  │                                               │    │
 │  │  ─────────────────────────────────────────    │    │
 │  │                                               │    │

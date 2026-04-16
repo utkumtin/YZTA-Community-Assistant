@@ -140,7 +140,7 @@ class EventScheduler:
                 )
                 if evt.link:
                     builder.add_button("Katil", f"event_link_{evt.id}", url=evt.link)
-                builder.add_button("Takvime Ekle", f"event_cal_{evt.id}", url=cal_url)
+                builder.add_button("Google Takvime Ekle", f"event_cal_{evt.id}", url=cal_url)
                 builder.add_divider()
 
                 # Ilgi gosterenleri topla
