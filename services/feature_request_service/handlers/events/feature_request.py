@@ -1,10 +1,16 @@
 """Modal submit ve buton action handler'ları."""
 
 import logging
-from packages.slack.client import slack_client
+
+from packages.database.manager import db
 from packages.slack.blocks.layouts import Layouts
+from packages.slack.client import slack_client
 from services.feature_request_service.core.event_loop import run_async
 from services.feature_request_service.service import FeatureRequestService
+from services.feature_request_service.utils.notifications import (
+    NotificationType,
+    send_notification,
+)
 
 logger = logging.getLogger("feature_request_service.handlers.events")
 app = slack_client.app
@@ -14,7 +20,7 @@ _service = None
 def _svc():
     global _service
     if _service is None:
-        _service = FeatureRequestService()
+        _service = FeatureRequestService(db)
     return _service
 
 
@@ -29,28 +35,37 @@ def handle_submit(ack, body, client):
         r = run_async(_svc().submit_request(uid, raw))
     except Exception as e:
         logger.error(f"Submit hatası: {e}", exc_info=True)
-        client.chat_postMessage(channel=uid, text="❌ Teknik hata.")
+        send_notification(
+            client, uid, uid, NotificationType.ACTION_RESULT, "❌ Teknik hata."
+        )
         return
     match r.get("status"):
         case "created":
-            client.chat_postMessage(
-                channel=uid,
-                blocks=Layouts.feature_request_success(raw),
-                text="Kaydedildi!",
+            send_notification(
+                client,
+                uid,
+                uid,
+                NotificationType.ACTION_RESULT,
+                "Kaydedildi!",
+                Layouts.feature_request_success(raw),
             )
         case "similar_found":
-            client.chat_postMessage(
-                channel=uid,
-                blocks=Layouts.feature_request_similar(
-                    r["existing_text"], r["existing_id"]
-                ),
-                text="Benzer var.",
+            send_notification(
+                client,
+                uid,
+                uid,
+                NotificationType.ACTION_RESULT,
+                "Benzer var.",
+                Layouts.feature_request_similar(r["existing_text"], r["existing_id"]),
             )
         case "quota_exceeded":
-            client.chat_postMessage(
-                channel=uid,
-                blocks=Layouts.feature_request_quota_exceeded(r["used"], r["max"]),
-                text="Hak doldu.",
+            send_notification(
+                client,
+                uid,
+                uid,
+                NotificationType.ACTION_RESULT,
+                "Hak doldu.",
+                Layouts.feature_request_quota_exceeded(r["used"], r["max"]),
             )
 
 
@@ -64,14 +79,19 @@ def handle_edit_submit(ack, body, client):
     ]
     try:
         run_async(_svc().update_request(rid, txt))
-        client.chat_postMessage(
-            channel=uid,
-            blocks=Layouts.feature_request_success(txt),
-            text="Güncellendi!",
+        send_notification(
+            client,
+            uid,
+            uid,
+            NotificationType.ACTION_RESULT,
+            "Güncellendi!",
+            Layouts.feature_request_success(txt),
         )
     except Exception as e:
         logger.error(f"Edit hatası: {e}", exc_info=True)
-        client.chat_postMessage(channel=uid, text="❌ Güncelleme hatası.")
+        send_notification(
+            client, uid, uid, NotificationType.ACTION_RESULT, "❌ Güncelleme hatası."
+        )
 
 
 @app.action("feature_edit_yes")
@@ -91,7 +111,11 @@ def handle_edit_yes(ack, body, client):
 @app.action("feature_edit_no")
 def handle_edit_no(ack, body, client):
     ack()
-    client.chat_postMessage(
-        channel=body["user"]["id"],
-        text="Tamam! `/cemilimyapar` ile yeni fikir gönderebilirsin. 💡",
+    uid = body["user"]["id"]
+    send_notification(
+        client,
+        uid,
+        uid,
+        NotificationType.ACTION_RESULT,
+        "Tamam! `/cemilimyapar` ile yeni fikir gönderebilirsin. 💡",
     )

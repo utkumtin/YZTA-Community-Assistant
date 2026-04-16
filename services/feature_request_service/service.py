@@ -1,10 +1,5 @@
 """
-Feature Request Servisi — Akademi Topluluk Asistanı
-
-AMAÇ
-----
-`/cemilimyapar` komutunun tüm iş mantığını yöneten servis katmanı.
-Slack SDK'ya doğrudan erişimi yoktur; manager'lar handler katmanından inject edilir.
+Feature Request Servisi
 
 İŞ AKIŞLARI
 -----------
@@ -30,23 +25,25 @@ DÖNÜŞ TİPLERİ (submit_request)
 """
 
 import logging
-import numpy as np
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from packages.database.manager import DatabaseManager
+import hdbscan
+import numpy as np
+import umap
+
+from packages.clients.groq import GroqClient
+from packages.database.models.feature_request import FeatureClusterLabel, FeatureRequest
 from packages.database.repository.feature_request import (
     FeatureClusterLabelRepository,
     FeatureRequestRepository,
 )
-from packages.database.models.feature_request import FeatureRequest, FeatureClusterLabel
-from packages.vector import VectorClient, VectorClientError
-from packages.clients.groq import GroqClient
-
-import umap
-import hdbscan
-
+from packages.vector import VectorClient
+from services.feature_request_service.utils.notifications import (
+    NotificationType,
+    send_notification,
+)
 
 # Constants
 
@@ -59,6 +56,7 @@ FRAUD_WINDOW_DAYS = 7
 @dataclass
 class ClusteringParams:
     """UMAP ve HDBSCAN için parametre kümesi."""
+
     min_cluster_size: int
     min_samples: int
     n_components: int
@@ -68,9 +66,9 @@ class ClusteringParams:
     def from_batch_size(cls, n: int) -> "ClusteringParams":
         """Batch büyüklüğüne göre dinamik parametre hesaplaması."""
         min_cluster_size = max(3, int(n * 0.025))
-        min_samples      = max(2, int(min_cluster_size * 0.6))
-        n_components     = min(10, max(5, int(np.log2(max(n, 2)))))
-        n_neighbors      = min(15, max(5, int(np.sqrt(n))))
+        min_samples = max(2, int(min_cluster_size * 0.6))
+        n_components = min(10, max(5, int(np.log2(max(n, 2)))))
+        n_neighbors = min(15, max(5, int(np.sqrt(n))))
         return cls(min_cluster_size, min_samples, n_components, n_neighbors)
 
 
@@ -86,11 +84,11 @@ class FeatureRequestService:
     Tüm infrastructure client'larını constructor'da oluşturur.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, db_manager) -> None:
         self.logger = logging.getLogger("feature_request_service.FeatureRequestService")
         self.vector_client = VectorClient()
         self.groq_client = GroqClient()
-        self.db = DatabaseManager()
+        self.db = db_manager
 
     # SUBMIT AKIŞI
 
@@ -113,14 +111,20 @@ class FeatureRequestService:
             status="similar_found" → {"status": "similar_found", "existing_id": ..., "existing_text": ...}
             status="quota_exceeded"→ {"status": "quota_exceeded", "used": N, "max": N}
         """
-        async with self.db.session_scope() as session:
+        from packages.database.repository.slack import SlackUserRepository
+
+        async with self.db.session() as session:
+            # 0. Sync Slack user basic record
+            slack_repo = SlackUserRepository(session)
+            await slack_repo.get_or_create(slack_id=user_id)
+
             repo = FeatureRequestRepository(session)
 
             # 1. Haftalık hak kontrolü
             used = await self.check_weekly_quota(user_id, repo)
             if used >= WEEKLY_QUOTA:
                 self.logger.info(
-                    f"Haftalık kota aşıldı.", extra={"user_id": user_id, "used": used}
+                    "Haftalık kota aşıldı.", extra={"user_id": user_id, "used": used}
                 )
                 return {"status": "quota_exceeded", "used": used, "max": WEEKLY_QUOTA}
 
@@ -143,7 +147,7 @@ class FeatureRequestService:
             similar = await self.find_similar_this_week(user_id, vector, repo)
             if similar is not None:
                 self.logger.info(
-                    f"Benzer kayıt bulundu.",
+                    "Benzer kayıt bulundu.",
                     extra={"user_id": user_id, "similar_id": similar.id},
                 )
                 return {
@@ -167,10 +171,24 @@ class FeatureRequestService:
             await session.flush()
 
             self.logger.info(
-                f"Yeni feature request kaydedildi.",
+                "Yeni feature request kaydedildi.",
                 extra={"user_id": user_id, "request_id": new_request.id},
             )
             return {"status": "created", "request_id": new_request.id}
+
+    async def get_request_text(self, request_id: str) -> str:
+        """
+        Kullanıcının düzenleme (edit) işlemi için veritabanından mevcut request_raw değerini getirir.
+        Kayıt bulunamazsa ValueError fırlatır.
+        """
+        async with self.db.session() as session:
+            repo = FeatureRequestRepository(session)
+            request = await repo.get(request_id)
+            if not request:
+                raise ValueError(
+                    f"ID'si '{request_id}' olan Feature Request kaydı bulunamadı."
+                )
+            return request.request_raw
 
     async def update_request(self, request_id: str, new_text: str) -> dict[str, Any]:
         """
@@ -187,13 +205,13 @@ class FeatureRequestService:
             {"status": "updated", "request_id": "FRQ-..."}
             {"status": "not_found"}
         """
-        async with self.db.session_scope() as session:
+        async with self.db.session() as session:
             repo = FeatureRequestRepository(session)
             request = await repo.get(request_id)
 
             if request is None:
                 self.logger.warning(
-                    f"Güncellenecek kayıt bulunamadı.", extra={"request_id": request_id}
+                    "Güncellenecek kayıt bulunamadı.", extra={"request_id": request_id}
                 )
                 return {"status": "not_found"}
 
@@ -211,7 +229,7 @@ class FeatureRequestService:
             await repo.update(request)
 
             self.logger.info(
-                f"Feature request güncellendi.", extra={"request_id": request_id}
+                "Feature request güncellendi.", extra={"request_id": request_id}
             )
             return {"status": "updated", "request_id": request_id}
 
@@ -239,7 +257,7 @@ class FeatureRequestService:
             records = await repo.list_by_user_this_week(user_id)
             return len(records)
 
-        async with self.db.session_scope() as session:
+        async with self.db.session() as session:
             records = await FeatureRequestRepository(session).list_by_user_this_week(
                 user_id
             )
@@ -266,7 +284,7 @@ class FeatureRequestService:
         if repo is not None:
             existing = await repo.list_embedded_vectors(user_id)
         else:
-            async with self.db.session_scope() as session:
+            async with self.db.session() as session:
                 existing = await FeatureRequestRepository(
                     session
                 ).list_embedded_vectors(user_id)
@@ -319,7 +337,7 @@ class FeatureRequestService:
         if repo is not None:
             all_embedded = await repo.list_by_status("embedded")
         else:
-            async with self.db.session_scope() as session:
+            async with self.db.session() as session:
                 all_embedded = await FeatureRequestRepository(session).list_by_status(
                     "embedded"
                 )
@@ -372,7 +390,7 @@ class FeatureRequestService:
               "new_labels": K,     # Bu çalıştırmada üretilen yeni label sayısı
             }
         """
-        async with self.db.session_scope() as session:
+        async with self.db.session() as session:
             fr_repo = FeatureRequestRepository(session)
             fcl_repo = FeatureClusterLabelRepository(session)
 
@@ -399,8 +417,7 @@ class FeatureRequestService:
 
             if len(vectors) < 3:
                 self.logger.info(
-                    f"Kümeleme için yeterli kayıt yok "
-                    f"(mevcut={len(vectors)}, min=3)."
+                    f"Kümeleme için yeterli kayıt yok (mevcut={len(vectors)}, min=3)."
                 )
                 return {"clustered": 0, "noise": len(vectors), "new_labels": 0}
 
@@ -411,7 +428,9 @@ class FeatureRequestService:
             matrix = matrix / norms
 
             # --- Parametreler ---
-            params = FIXED_CLUSTERING_PARAMS or ClusteringParams.from_batch_size(len(vectors))
+            params = FIXED_CLUSTERING_PARAMS or ClusteringParams.from_batch_size(
+                len(vectors)
+            )
 
             # --- UMAP boyut indirgeme ---
             self.logger.info(
@@ -460,8 +479,11 @@ class FeatureRequestService:
                 clustered_count += 1
 
             # --- Yeni cluster'lar için Groq label üret ---
-            unique_clusters = set(int(l) for l in labels if l != -1)
+            unique_clusters = set(int(lbl) for lbl in labels if lbl != -1)
             new_labels_count = 0
+
+            # İndeks kaymasını önlemek için id'den kayda erişimi sağlayan sözlük (harita) kur
+            record_by_id = {r.id: r for r in embedded}
 
             for cid in unique_clusters:
                 existing_label = await fcl_repo.get_by_cluster_id(cid)
@@ -469,10 +491,11 @@ class FeatureRequestService:
                     continue  # Daha önce üretilmiş, tekrar üretme
 
                 # Bu cluster'a ait örnek talepleri bul
-                cluster_indices = [i for i, l in enumerate(labels) if l == cid]
-                sample_records = [
-                    embedded[i] for i in cluster_indices[:5]
-                ]  # En fazla 5 örnek
+                cluster_indices = [i for i, lbl in enumerate(labels) if lbl == cid]
+                sample_valid_ids = [
+                    valid_ids[i] for i in cluster_indices[:5]
+                ]  # geçerli valid_ids'den çekiyoruz
+                sample_records = [record_by_id[req_id] for req_id in sample_valid_ids]
                 sample_texts = [r.request_raw for r in sample_records]
 
                 label_text = await self._generate_cluster_label(cid, sample_texts)
@@ -496,12 +519,13 @@ class FeatureRequestService:
                 },
             )
 
-            # --- Kalibrasyon logņ ---
+            # --- Kalibrasyon logu ---
             sil_score = None
-            unique_cluster_list = list(set(int(l) for l in labels if l != -1))
+            unique_cluster_list = list(set(int(lbl) for lbl in labels if lbl != -1))
             try:
                 if len(unique_cluster_list) >= 2:
                     from sklearn.metrics import silhouette_score
+
                     sil_score = round(float(silhouette_score(reduced, labels)), 4)
             except Exception:
                 pass
@@ -512,17 +536,17 @@ class FeatureRequestService:
             )
 
             clustering_log = {
-                "run_date":          datetime.now().isoformat(),
-                "n_sentences":       len(vectors),
-                "min_cluster_size":  params.min_cluster_size,
-                "min_samples":       params.min_samples,
-                "n_components":      params.n_components,
-                "n_neighbors":       params.n_neighbors,
-                "n_clusters_found":  len(unique_cluster_list),
-                "noise_ratio":       round(noise_count / len(vectors), 4) if vectors else 0.0,
-                "silhouette_score":  sil_score,
-                "cluster_sizes":     cluster_sizes,
-                "param_source":      "fixed" if FIXED_CLUSTERING_PARAMS else "dynamic",
+                "run_date": datetime.now().isoformat(),
+                "n_sentences": len(vectors),
+                "min_cluster_size": params.min_cluster_size,
+                "min_samples": params.min_samples,
+                "n_components": params.n_components,
+                "n_neighbors": params.n_neighbors,
+                "n_clusters_found": len(unique_cluster_list),
+                "noise_ratio": round(noise_count / len(vectors), 4) if vectors else 0.0,
+                "silhouette_score": sil_score,
+                "cluster_sizes": cluster_sizes,
+                "param_source": "fixed" if FIXED_CLUSTERING_PARAMS else "dynamic",
             }
             self.logger.info(
                 "clustering_run",
@@ -530,9 +554,9 @@ class FeatureRequestService:
             )
 
             return {
-                "clustered":      clustered_count,
-                "noise":          noise_count,
-                "new_labels":     new_labels_count,
+                "clustered": clustered_count,
+                "noise": noise_count,
+                "new_labels": new_labels_count,
                 "clustering_log": clustering_log,
             }
 
@@ -571,7 +595,7 @@ class FeatureRequestService:
         Returns:
             Türkçe rapor metni (str). Kümelenmiş kayıt yoksa bilgilendirici mesaj.
         """
-        async with self.db.session_scope() as session:
+        async with self.db.session() as session:
             fr_repo = FeatureRequestRepository(session)
             fcl_repo = FeatureClusterLabelRepository(session)
 
@@ -643,7 +667,7 @@ class FeatureRequestService:
                 await fr_repo.mark_reported(reported_ids)
 
             self.logger.info(
-                f"Admin raporu oluşturuldu.",
+                "Admin raporu oluşturuldu.",
                 extra={
                     "total_requests": len(clustered),
                     "total_clusters": len(clusters),
@@ -664,8 +688,12 @@ class FeatureRequestService:
 
         try:
             for admin_id in settings.slack_admins:
-                await slack_client.bot_client.chat_postMessage(
-                    channel=admin_id, text=message
+                send_notification(
+                    client=slack_client.bot_client,
+                    user_id=admin_id,
+                    channel_id=admin_id,
+                    notif_type=NotificationType.SYSTEM_ALERT,
+                    text=message,
                 )
         except Exception as exc:
             self.logger.error(f"Admin bildirim hatası: {exc}", exc_info=True)
@@ -673,8 +701,8 @@ class FeatureRequestService:
     async def send_weekly_report(self) -> None:
         """Clustering pipeline'ı çalıştırır, rapor üretir ve adminlere DM atar."""
         from packages.settings import get_settings
-        from packages.slack.client import slack_client
         from packages.slack.blocks.layouts import Layouts
+        from packages.slack.client import slack_client
 
         try:
             cr = await self.run_clustering_pipeline()
@@ -688,8 +716,11 @@ class FeatureRequestService:
 
             settings = get_settings()
             for admin_id in settings.slack_admins:
-                await slack_client.bot_client.chat_postMessage(
-                    channel=admin_id,
+                send_notification(
+                    client=slack_client.bot_client,
+                    user_id=admin_id,
+                    channel_id=admin_id,
+                    notif_type=NotificationType.SYSTEM_REPORT,
                     text="Haftalık Özellik Talepleri Raporu",
                     blocks=blocks,
                 )
@@ -702,7 +733,7 @@ class FeatureRequestService:
 
     async def retry_failed_embeddings(self) -> None:
         """status='embedding_failed' olan kayıtları bulup tekrar embed etmeye çalışır."""
-        async with self.db.session_scope() as session:
+        async with self.db.session() as session:
             repo = FeatureRequestRepository(session)
             failed_records = await repo.list_by_status("embedding_failed")
             if not failed_records:
@@ -725,7 +756,7 @@ class FeatureRequestService:
 
     async def check_clustering_failed(self) -> None:
         """status='clustering_failed' olan kayıtları kontrol eder ve hâlâ varsa uyarı gönderir."""
-        async with self.db.session_scope() as session:
+        async with self.db.session() as session:
             repo = FeatureRequestRepository(session)
             failed_records = await repo.list_by_status("clustering_failed")
 

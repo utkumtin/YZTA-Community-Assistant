@@ -3,11 +3,17 @@
 """
 
 import logging
-from packages.slack.client import slack_client
-from packages.slack.blocks.layouts import Layouts
+
+from packages.database.manager import db
 from packages.settings import get_settings
+from packages.slack.blocks.layouts import Layouts
+from packages.slack.client import slack_client
 from services.feature_request_service.core.event_loop import run_async
 from services.feature_request_service.service import FeatureRequestService
+from services.feature_request_service.utils.notifications import (
+    NotificationType,
+    send_notification,
+)
 
 logger = logging.getLogger("feature_request_service.handlers.commands")
 app = slack_client.app
@@ -17,7 +23,7 @@ _service = None
 def _svc():
     global _service
     if _service is None:
-        _service = FeatureRequestService()
+        _service = FeatureRequestService(db)
     return _service
 
 
@@ -35,20 +41,23 @@ def handle_cemil_report(ack, body, client):
     uid = body["user_id"]
     txt = body.get("text", "").strip()
     s = get_settings()
-    admins = (
-        s.slack_admins
-        if isinstance(s.slack_admins, list)
-        else [a.strip() for a in s.slack_admins.split(",")]
-    )
+    admins = s.slack_admins
     if uid not in admins:
-        client.chat_postMessage(
-            channel=uid, text="❌ Bu komut sadece adminler içindir."
+        send_notification(
+            client,
+            uid,
+            uid,
+            NotificationType.COMMAND_ERROR,
+            "❌ Bu komut sadece adminler içindir.",
         )
         return
     if txt != "feature-requests":
-        client.chat_postMessage(
-            channel=uid,
-            text=f"Bilinmeyen: `{txt}`\nKullanım: `/cemil-report feature-requests`",
+        send_notification(
+            client,
+            uid,
+            uid,
+            NotificationType.COMMAND_ERROR,
+            f"Bilinmeyen: `{txt}`\nKullanım: `/cemil-report feature-requests`",
         )
         return
     try:
@@ -59,7 +68,16 @@ def handle_cemil_report(ack, body, client):
             blocks.extend(
                 Layouts.feature_request_calibration_summary(cr["clustering_log"])
             )
-        client.chat_postMessage(channel=uid, blocks=blocks, text="Rapor")
+        send_notification(
+            client,
+            uid,
+            uid,
+            NotificationType.SYSTEM_REPORT,
+            "Rapor",
+            blocks,
+        )
     except Exception as e:
         logger.error(f"Rapor hatası: {e}", exc_info=True)
-        client.chat_postMessage(channel=uid, text="❌ Rapor hatası.")
+        send_notification(
+            client, uid, uid, NotificationType.COMMAND_ERROR, "❌ Rapor hatası."
+        )
