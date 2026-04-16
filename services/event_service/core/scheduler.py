@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, date, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from packages.database.manager import db
 from packages.database.models.event import Event, EventStatus
@@ -22,6 +23,16 @@ from ..utils.notifications import (
     get_announcement_channels, send_dm, _location_display, _calendar_url,
 )
 from ..utils.email import send_reminder_email_async, send_user_status_email_async
+
+
+def _local_tz() -> ZoneInfo:
+    """Etkinlik saatlerinin yorumlanacagi yerel timezone (settings'ten)."""
+    return ZoneInfo(get_settings().event_timezone)
+
+
+def _now_local() -> datetime:
+    """Yerel timezone'da simdiki zaman (timezone-aware)."""
+    return datetime.now(_local_tz())
 
 
 class EventScheduler:
@@ -85,10 +96,11 @@ class EventScheduler:
     # ---- 2. COMPLETED gecisi ----
 
     async def _check_completed_transition(self) -> None:
-        utc_today = datetime.now(timezone.utc).date()
+        # Yerel tarihe gore gecmiste kalan etkinlikleri COMPLETED'a cek
+        local_today = _now_local().date()
         async with db.session() as session:
             repo = EventRepository(session)
-            past = await repo.list_approved_past(utc_today)
+            past = await repo.list_approved_past(local_today)
             for evt in past:
                 evt.status = EventStatus.COMPLETED
                 _logger.info("[SCHED] Completed: %s", evt.id)
@@ -96,33 +108,35 @@ class EventScheduler:
     # ---- 3. Gun basi hatirlatma ----
 
     async def _check_morning_reminder(self) -> None:
-        """Her gun 08:00 UTC'de o gunun etkinliklerini duyurur. Gun basina 1 kez."""
-        now = datetime.now(timezone.utc)
-        utc_today = now.date()
+        """Her gun yerel TZ'de ayarlanan saatte (default 08:00) o gunun etkinliklerini duyurur.
+        Gun basina 1 kez calisir (tarih flag'i ile kontrol edilir).
+        """
+        s = get_settings()
+        now_local = _now_local()
+        local_today = now_local.date()
 
-        # Saat 08:00 UTC'den once calisma
-        if now.hour < 8:
+        # Ayarlanan saatten once calisma
+        if now_local.hour < s.event_morning_reminder_hour:
             return
 
         # Bugun zaten gonderildiyse atla
-        if self._morning_reminder_last_date == utc_today:
+        if self._morning_reminder_last_date == local_today:
             return
 
-        s = get_settings()
         if not s.event_reminder_enabled:
             return
 
         async with db.session(read_only=True) as session:
             repo = EventRepository(session)
-            events = await repo.list_approved_by_date(utc_today)
+            events = await repo.list_approved_by_date(local_today)
             if not events:
-                self._morning_reminder_last_date = utc_today
+                self._morning_reminder_last_date = local_today
                 return
 
             interest_repo = EventInterestRepository(session)
 
             builder = MessageBuilder()
-            builder.add_header(f"Bugünün Etkinlikleri — {utc_today.strftime('%d %B %Y')}")
+            builder.add_header(f"Bugünün Etkinlikleri — {local_today.strftime('%d %B %Y')}")
             builder.add_divider()
 
             # E-posta gonderilecek ilgili kullanicilari topla
@@ -160,7 +174,7 @@ class EventScheduler:
                 try:
                     slack_client.bot_client.chat_postMessage(
                         channel=ch,
-                        text=f"Bugünün Etkinlikleri — {utc_today.strftime('%d %B %Y')}",
+                        text=f"Bugünün Etkinlikleri — {local_today.strftime('%d %B %Y')}",
                         blocks=blocks,
                     )
                 except Exception as e:
@@ -170,7 +184,7 @@ class EventScheduler:
         for slack_id, evt in interested_users:
             await send_reminder_email_async(slack_id, evt, "day")
 
-        self._morning_reminder_last_date = utc_today
+        self._morning_reminder_last_date = local_today
         _logger.info("[SCHED] Morning reminder sent for %d events", len(events))
 
     # ---- 4. 10dk oncesi hatirlatma ----
@@ -180,8 +194,10 @@ class EventScheduler:
         if not s.event_reminder_enabled:
             return
 
-        now = datetime.now(timezone.utc)
-        utc_today = now.date()
+        # Etkinlik saatleri YEREL TZ'de yorumlanir — kullanici yerel saat girer.
+        tz = _local_tz()
+        now_local = _now_local()
+        local_today = now_local.date()
 
         # Bildirim gonderilecek event'leri ve ilgili kullanicilari topla
         to_notify: list[tuple[Event, list[str]]] = []
@@ -189,13 +205,14 @@ class EventScheduler:
 
         async with db.session(read_only=True) as session:
             repo = EventRepository(session)
-            events = await repo.list_approved_by_date(utc_today)
+            events = await repo.list_approved_by_date(local_today)
 
             interest_repo = EventInterestRepository(session)
 
             for evt in events:
-                evt_dt = datetime.combine(utc_today, evt.time, tzinfo=timezone.utc)
-                diff = (evt_dt - now).total_seconds()
+                # Etkinlik zamani = yerel tarih + yerel saat (timezone-aware)
+                evt_dt = datetime.combine(local_today, evt.time, tzinfo=tz)
+                diff = (evt_dt - now_local).total_seconds()
                 if not (540 <= diff <= 660):  # 9-11 dakika arasi
                     continue
 

@@ -34,6 +34,8 @@ class SystemSettings(BaseSettings):
     event_channel: str = Field(..., description="Serbest Kursu kanal ID'si (C...)")
     event_reminder_enabled: bool = Field(True, description="Hatirlatma sistemi acik/kapali")
     event_approval_timeout_hours: int = Field(72, ge=1, description="Admin onay suresi (saat)")
+    event_timezone: str = Field("Europe/Istanbul", description="Etkinlik saatlerinin yorumlanacagi IANA timezone (zoneinfo)")
+    event_morning_reminder_hour: int = Field(8, ge=0, le=23, description="Gun basi hatirlatma saati (yerel TZ)")
 
     # Database Ayarları
     username: str = Field(..., description="Veritabanı kullanıcı adı")
