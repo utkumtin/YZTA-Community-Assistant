@@ -66,10 +66,6 @@ def handle_cemil_report(ack, body, client):
         cr = run_async(_svc().run_clustering_pipeline())
         rt = run_async(_svc().generate_admin_report())
         blocks = Layouts.feature_request_report(rt)
-        if cr and "clustering_log" in cr:
-            blocks.extend(
-                Layouts.feature_request_calibration_summary(cr["clustering_log"])
-            )
         send_notification(
             client,
             uid,

@@ -170,11 +170,6 @@ class Layouts:
             blocks.append(BlockBuilder.section(current_chunk.strip()))
 
         blocks.append(BlockBuilder.divider())
-        blocks.append(
-            BlockBuilder.context(
-                ["🪄 *Groq AI ve HDBSCAN algoritması tarafından kümelenmiştir.*"]
-            )
-        )
         return blocks
 
     @staticmethod
@@ -270,24 +265,3 @@ class Layouts:
                 },
             ],
         }
-
-    @staticmethod
-    def feature_request_calibration_summary(clustering_log: dict) -> List[Dict]:
-        """
-        Clustering pipeline sonuç özeti — /cemil-report raporuna eklenir.
-
-        clustering_log beklenen anahtarlar:
-          clustered (int), noise (int), new_labels (int)
-        """
-        clustered = clustering_log.get("clustered", 0)
-        noise = clustering_log.get("noise", 0)
-        new_labels = clustering_log.get("new_labels", 0)
-        return [
-            BlockBuilder.divider(),
-            BlockBuilder.section(
-                f"*📐 Clustering Özeti*\n"
-                f"• Kümelenen talep: *{clustered}*\n"
-                f"• Gürültü (kümelenemeyen): *{noise}*\n"
-                f"• Yeni küme etiketi üretildi: *{new_labels}*"
-            ),
-        ]
