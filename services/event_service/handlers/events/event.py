@@ -463,17 +463,18 @@ def handle_interest_btn(ack: Ack, body: dict, client, action):
             repo = EventRepository(session)
             evt = await repo.get(event_id)
             if not evt or evt.status != EventStatus.APPROVED:
-                return None, "not_found"
+                return None, "not_found", 0
             interest_repo = EventInterestRepository(session)
             existing = await interest_repo.find_by_event_and_user(event_id, user_id)
             if existing:
-                return evt, "already"
+                count = await interest_repo.count_by_event(event_id)
+                return evt, "already", count
             await interest_repo.create(EventInterest(event_id=event_id, slack_id=user_id))
             count = await interest_repo.count_by_event(event_id)
-            return evt, count
+            return evt, "ok", count
 
     try:
-        evt, result = _run_async(_add_interest())
+        evt, result, count = _run_async(_add_interest())
     except Exception as e:
         _logger.error("[EVT] Interest button failed: %s", e)
         return
@@ -482,20 +483,42 @@ def handle_interest_btn(ack: Ack, body: dict, client, action):
         client.chat_postEphemeral(channel=channel_id, user=user_id,
                                    text="Etkinlik bulunamadı veya ilgi gösterilemez durumda.")
         return
+
+    from ...utils.notifications import _calendar_url, _location_with_link_inline
+    loc = _location_with_link_inline(evt)
+
     if result == "already":
-        client.chat_postEphemeral(channel=channel_id, user=user_id,
-                                   text=f"Bu etkinliğe zaten ilgi gösterdiniz.\n*{evt.name}*\n_{evt.id}_")
+        client.chat_postEphemeral(
+            channel=channel_id, user=user_id,
+            text=(
+                f"Bu etkinliğe zaten ilgi gösterdiniz!\n"
+                f"───\n"
+                f"*{evt.name}*\n"
+                f"{evt.date.strftime('%d %B %Y')} · {evt.time.strftime('%H:%M')} · {loc}\n"
+                f"{evt.description}\n"
+                f"<@{evt.creator_slack_id}>  · {count} ilgili · ✓ ilgi gösterdin\n"
+                f"Etkinlik günü hatırlatma e-postası alacaksın."
+            ),
+        )
         return
 
-    from ...utils.notifications import _calendar_url
-    cal_url = _calendar_url(evt)
+    # Basarili — ephemeral
     client.chat_postEphemeral(
         channel=channel_id, user=user_id,
-        text=f"İlgin kaydedildi!\n*{evt.name}*\n_{evt.id}_"
+        text=(
+            f"İlgin kaydedildi!\n"
+            f"───\n"
+            f"*{evt.name}*\n"
+            f"{evt.date.strftime('%d %B %Y')} · {evt.time.strftime('%H:%M')} · {loc}\n"
+            f"{evt.description}\n"
+            f"<@{evt.creator_slack_id}>  · {count} ilgili · ✓ ilgi gösterdin\n"
+            f"Etkinlik günü hatırlatma e-postası alacaksın."
+        ),
     )
 
+    # DM
+    cal_url = _calendar_url(evt)
     dm_builder = MessageBuilder()
-    loc = _location_display(evt)
     dm_builder.add_text(
         f"İlgin kaydedildi!\n\n"
         f"*{evt.name}*\n"
@@ -632,16 +655,18 @@ def handle_add_me_modal(ack: Ack, body: dict, client, view):
             repo = EventRepository(session)
             evt = await repo.get(event_id)
             if not evt or evt.status != EventStatus.APPROVED:
-                return None, "not_found"
+                return None, "not_found", 0
             interest_repo = EventInterestRepository(session)
             existing = await interest_repo.find_by_event_and_user(event_id, user_id)
             if existing:
-                return evt, "already"
+                count = await interest_repo.count_by_event(event_id)
+                return evt, "already", count
             await interest_repo.create(EventInterest(event_id=event_id, slack_id=user_id))
-            return evt, "ok"
+            count = await interest_repo.count_by_event(event_id)
+            return evt, "ok", count
 
     try:
-        evt, status = _run_async(_add())
+        evt, status, count = _run_async(_add())
     except Exception as e:
         _logger.error("[EVT] add_me modal failed: %s", e)
         send_dm(user_id, "İlgi kaydedilemedi, tekrar deneyin.")
@@ -651,36 +676,47 @@ def handle_add_me_modal(ack: Ack, body: dict, client, view):
         send_dm(user_id, "Etkinlik bulunamadı veya ilgi gösterilemez durumda.")
         return
 
+    from ...utils.notifications import _calendar_url, _location_with_link_inline
+    loc = _location_with_link_inline(evt)
+
     if status == "already":
-        send_dm(
-            user_id,
-            f"Bu etkinliğe zaten ilgi göstermişsiniz.\n*{evt.name}*\n_{evt.id}_",
+        already_text = (
+            f"Bu etkinliğe zaten ilgi gösterdiniz!\n"
+            f"───\n"
+            f"*{evt.name}*\n"
+            f"{evt.date.strftime('%d %B %Y')} · {evt.time.strftime('%H:%M')} · {loc}\n"
+            f"{evt.description}\n"
+            f"<@{evt.creator_slack_id}>  · {count} ilgili · ✓ ilgi gösterdin\n"
+            f"Etkinlik günü hatırlatma e-postası alacaksın."
         )
+        if channel_id:
+            try:
+                client.chat_postEphemeral(channel=channel_id, user=user_id, text=already_text)
+            except Exception:
+                pass
+        send_dm(user_id, already_text)
         return
 
     # Basarili
-    from ...utils.notifications import _calendar_url
-    cal_url = _calendar_url(evt)
-    loc = _location_display(evt)
+    success_text = (
+        f"İlgin kaydedildi!\n"
+        f"───\n"
+        f"*{evt.name}*\n"
+        f"{evt.date.strftime('%d %B %Y')} · {evt.time.strftime('%H:%M')} · {loc}\n"
+        f"{evt.description}\n"
+        f"<@{evt.creator_slack_id}>  · {count} ilgili · ✓ ilgi gösterdin\n"
+        f"Etkinlik günü hatırlatma e-postası alacaksın."
+    )
 
-    # 1) Komutun yazildigi kanala ephemeral onay (minimal — butonsuz)
+    # 1) Komutun yazildigi kanala ephemeral onay
     if channel_id:
         try:
-            client.chat_postEphemeral(
-                channel=channel_id,
-                user=user_id,
-                text=(
-                    f"İlgin kaydedildi!\n"
-                    f"*{evt.name}*\n"
-                    f"{evt.date.strftime('%d %B %Y')} · {evt.time.strftime('%H:%M')} · {loc}\n"
-                    f"{evt.description}\n\n"
-                    f"Etkinlik günü hatırlatma e-postası alacaksın."
-                ),
-            )
+            client.chat_postEphemeral(channel=channel_id, user=user_id, text=success_text)
         except Exception as e:
             _logger.warning("[EVT] add_me ephemeral gonderilemedi: %s", e)
 
     # 2) DM (tam detay + Google Takvime Ekle butonu)
+    cal_url = _calendar_url(evt)
     dm_builder = MessageBuilder()
     dm_builder.add_text(
         f"İlgin kaydedildi!\n\n"
