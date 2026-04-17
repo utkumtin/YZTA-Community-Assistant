@@ -63,7 +63,7 @@ def handle_cemil_report(ack, body, client):
         )
         return
     try:
-        cr = run_async(_svc().run_clustering_pipeline())
+        run_async(_svc().run_clustering_pipeline())
         rt = run_async(_svc().generate_admin_report())
         blocks = Layouts.feature_request_report(rt)
         send_notification(
