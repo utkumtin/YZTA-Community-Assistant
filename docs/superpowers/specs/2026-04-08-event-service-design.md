@@ -37,11 +37,12 @@ Tum komutlar `#serbest-kursu` kanalinda calisir.
 
 **`/event list` (ephemeral):**
 
-Format: emoji yok, event ID yok. Her etkinlik 4 satirda gosterilir:
+Format: emoji yok, event ID yok. Her etkinlik 4 satirda + butonlarla gosterilir:
 - 1. satir: `*Etkinlik Adi*` (bold)
 - 2. satir: `Tarih · Saat · Lokasyon` — Slack kanali ise `<#C123>` mention, harici platform ise duz metin. Link varsa platform adindan sonra parantez icinde `(<link|Link>)` eklenir.
 - 3. satir: `Etkinlik Aciklamasi`
 - 4. satir: `<@creator>  · N ilgili · ✓ ilgi gosterdin` — son kisim sadece kullanici bu etkinlige ilgi gosterdiyse eklenir.
+- Butonlar: Her etkinligin altinda **Katilacagim** + **Google Takvime Ekle** butonlari yer alir.
 
 ```
 ┌─ Event Bot (sadece sana gorunur) ──────────────────┐
@@ -54,16 +55,23 @@ Format: emoji yok, event ID yok. Her etkinlik 4 satirda gosterilir:
 │    Python ile web scraping tekniklerini ogrenecegiz.│
 │    <@U123>  · 5 ilgili · ✓ ilgi gosterdin           │
 │                                                     │
+│    [Katilacagim]  [Google Takvime Ekle]              │
+│  ─────────────────────────────────────────────      │
+│                                                     │
 │  • *AI Sohbeti*                                      │
 │    22 Nisan 2026 · 21:00 · <#C456>                  │
 │    Yapay zeka trendleri uzerine serbest sohbet.      │
 │    <@U789>  · 3 ilgili                              │
+│                                                     │
+│    [Katilacagim]  [Google Takvime Ekle]              │
+│  ─────────────────────────────────────────────      │
 │                                                     │
 │  • *DevOps Sunumu*                                   │
 │    28 Nisan 2026 · 18:30 · Google Meet (<meet.g.co/xyz|Link>)│
 │    CI/CD ve IaC kavramlarina giris sunumu.          │
 │    <@UABC>  · 8 ilgili · ✓ ilgi gosterdin           │
 │                                                     │
+│    [Katilacagim]  [Google Takvime Ekle]              │
 │  ─────────────────────────────────────────────      │
 │  Toplam: 3 etkinlik                                  │
 │                                                     │
