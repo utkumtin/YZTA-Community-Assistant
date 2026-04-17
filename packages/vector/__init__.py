@@ -36,15 +36,22 @@ MODEL
     - ~420 MB (ilk çalıştırmada HuggingFace'den indirilir, sonrası cache)
 """
 
+import gc
+import time
+
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
+
 class VectorClientError(Exception):
     """Vector client operations için temel hata sınıfı."""
+
     pass
+
 
 class SingletonMeta(type):
     """Sınıfın sadece tek bir örneğinin (singleton) olmasını sağlayan metaclass."""
+
     _instances = {}
 
     def __call__(cls, *args, **kwargs):
@@ -52,7 +59,9 @@ class SingletonMeta(type):
             cls._instances[cls] = super().__call__(*args, **kwargs)
         return cls._instances[cls]
 
+
 from packages.logger.manager import get_logger
+
 logger = get_logger("vector_client")
 
 
@@ -60,8 +69,8 @@ class VectorClient(metaclass=SingletonMeta):
     """
     sentence-transformers tabanlı Singleton embedding istemcisi.
 
-    İlk örneklendiğinde modeli yükler (~420 MB, bir kez). Sonraki
-    çağrılar aynı yüklü modeli kullanır.
+    İlk örneklendiğinde belleğe yüklenmez (Lazy Load). İlk istek geldiğinde
+    yüklenir. Eğer IDLE_TIMEOUT süresince kullanılmazsa RAM'den temizlenir.
 
     pgvector entegrasyonu: embed() ve embed_batch() çıktısı olduğu gibi
     SQLAlchemy Vector(768) kolonuna atanabilir; ayrıca serileştirme gerekmez.
@@ -71,17 +80,43 @@ class VectorClient(metaclass=SingletonMeta):
     VECTOR_DIM = 768
     _DTYPE = np.float32
 
+    # 1 saat (3600 saniye) kullanılmazsa RAM'den at
+    IDLE_TIMEOUT = 3600
+
     def __init__(self) -> None:
-        try:
-            logger.info(f"[>] VectorClient: '{self.MODEL_NAME}' modeli yükleniyor...")
-            self._model = SentenceTransformer(self.MODEL_NAME)
-            logger.info(
-                f"[+] VectorClient hazır. Model: {self.MODEL_NAME}, Boyut: {self.VECTOR_DIM}"
-            )
-        except Exception as exc:
-            raise VectorClientError(
-                f"Embedding modeli yüklenemedi ('{self.MODEL_NAME}'): {exc}"
-            ) from exc
+        self._model = None
+        self._last_used = 0.0
+        logger.info("[>] VectorClient başlatıldı (Lazy Load & Idle Timeout).")
+
+    def _get_model(self) -> SentenceTransformer:
+        """Model RAM'de yoksa yükler, varsa var olanı döndürür ve son kullanım süresini günceller."""
+        if self._model is None:
+            try:
+                logger.info(
+                    f"[>] VectorClient: '{self.MODEL_NAME}' modeli belleğe yükleniyor..."
+                )
+                self._model = SentenceTransformer(self.MODEL_NAME)
+                logger.info(
+                    f"[+] VectorClient hazır. Model: {self.MODEL_NAME}, Boyut: {self.VECTOR_DIM}"
+                )
+            except Exception as exc:
+                raise VectorClientError(
+                    f"Embedding modeli yüklenemedi ('{self.MODEL_NAME}'): {exc}"
+                ) from exc
+
+        self._last_used = time.time()
+        return self._model
+
+    def unload_if_idle(self) -> None:
+        """Belirlenen boşta kalma süresi (IDLE_TIMEOUT) aşıldıysa modeli RAM'den temizler."""
+        if self._model is not None:
+            idle_time = time.time() - self._last_used
+            if idle_time > self.IDLE_TIMEOUT:
+                logger.info(
+                    f"[-] VectorClient: Model {idle_time:.0f} saniyedir kullanılmıyor. RAM'den temizleniyor..."
+                )
+                self._model = None
+                gc.collect()
 
     # Encode
 
@@ -104,7 +139,8 @@ class VectorClient(metaclass=SingletonMeta):
         if not text or not text.strip():
             raise VectorClientError("Boş metin encode edilemez.")
         try:
-            vector: np.ndarray = self._model.encode(
+            model = self._get_model()
+            vector: np.ndarray = model.encode(
                 text,
                 convert_to_numpy=True,
                 normalize_embeddings=True,  # cosine sim = dot prod sonrası
@@ -129,7 +165,8 @@ class VectorClient(metaclass=SingletonMeta):
         if not texts:
             raise VectorClientError("Boş metin listesi encode edilemez.")
         try:
-            matrix: np.ndarray = self._model.encode(
+            model = self._get_model()
+            matrix: np.ndarray = model.encode(
                 texts,
                 convert_to_numpy=True,
                 normalize_embeddings=True,

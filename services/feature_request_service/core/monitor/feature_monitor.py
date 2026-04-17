@@ -15,6 +15,12 @@ class FeatureRequestMonitor:
 
     async def start(self):
         self._running = True
+
+        async def _check_vector_idle():
+            from packages.vector import VectorClient
+
+            VectorClient().unload_if_idle()
+
         self._tasks = [
             asyncio.create_task(
                 self._daily(
@@ -39,6 +45,9 @@ class FeatureRequestMonitor:
             asyncio.create_task(
                 self._weekly(5, time(10, 0), self._svc.send_weekly_report, "report_sat")
             ),
+            asyncio.create_task(
+                self._periodic(900, _check_vector_idle, "vector_idle_check")
+            ),
         ]
         _logger.info("[Monitor] %d görev başlatıldı", len(self._tasks))
 
@@ -49,6 +58,18 @@ class FeatureRequestMonitor:
         await asyncio.gather(*self._tasks, return_exceptions=True)
         self._tasks.clear()
         _logger.info("[Monitor] Durduruldu")
+
+    async def _periodic(self, interval_seconds: int, job, name: str):
+        while self._running:
+            try:
+                await asyncio.sleep(interval_seconds)
+                if self._running:
+                    await job()
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                _logger.error("[Monitor] %s: %s", name, e, exc_info=True)
+                await asyncio.sleep(60)
 
     async def _daily(self, target: time, job, name: str):
         while self._running:
