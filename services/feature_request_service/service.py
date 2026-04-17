@@ -47,7 +47,7 @@ from services.feature_request_service.utils.notifications import (
 
 # Constants
 
-WEEKLY_QUOTA = 2
+WEEKLY_QUOTA = 500
 SIMILARITY_THRESHOLD = 0.85
 FRAUD_THRESHOLD = 0.90
 FRAUD_WINDOW_DAYS = 7
@@ -343,7 +343,9 @@ class FeatureRequestService:
                 )
 
         others = [
-            r for r in all_embedded if r.user_id != user_id and r.request_embedded
+            r
+            for r in all_embedded
+            if r.user_id != user_id and r.request_embedded is not None
         ]
         if not others:
             return 0.0
@@ -582,18 +584,53 @@ class FeatureRequestService:
             )
             return f"Grup #{cluster_id}"  # Fallback label
 
+    async def _describe_cluster(
+        self, cluster_id: int, label: str, sample_texts: list[str]
+    ) -> str:
+        """
+        Bir cluster için 1-2 cümlelik Türkçe açıklama üretir.
+
+        _generate_cluster_label()'dan farklı olarak başlık değil,
+        kısa bir niteleyici özet döndürür. Sadece bu metin LLM'e bırakılır;
+        rapor yapısının geri kalanı Python'da sabit olarak kurulur.
+        """
+        samples_str = "\n".join(f"- {t[:150]}" for t in sample_texts[:5])
+        system_prompt = (
+            "Sen bir ürün analistinin asistanısın. "
+            "Sana bir özellik talebi grubunun başlığı ve birkaç örnek talep verilecek. "
+            "Bu grubu 1-2 cümleyle Türkçe olarak özetle. "
+            "Sadece özeti yaz, başka hiçbir şey ekleme. "
+            "Madde işareti, başlık veya açıklama etiketi kullanma."
+        )
+        user_prompt = f"Grup başlığı: {label}\nÖrnek talepler:\n{samples_str}\n\nÖzet:"
+        try:
+            return await self.groq_client.quick_ask(system_prompt, user_prompt)
+        except Exception as exc:
+            self.logger.warning(
+                f"Cluster açıklaması üretilemedi (cluster={cluster_id}): {exc}"
+            )
+            return (
+                f"Bu grupta {len(sample_texts)} benzer kullanıcı talebi bulunmaktadır."
+            )
+
     # ==========================================================================
     # ADMIN RAPORU
     # ==========================================================================
 
-    async def generate_admin_report(self) -> str:
+    async def generate_admin_report(self, pipeline_stats: dict | None = None) -> str:
         """
-        status='clustered' olan kayıtlardan Groq ile Türkçe yönetici raporu üretir.
+        status='clustered' olan kayıtlardan yapısı sabit bir Türkçe yönetici raporu üretir.
 
-        Raporlanan kayıtların status'unu 'reported' olarak günceller.
+        Rapor yapısı Python f-string şablonuyla kurulur; LLM yalnızca
+        top-3 cluster için 1-2 cümlelik açıklama üretmek üzere çağrılır.
+        Böylece her çalıştırmada aynı yapı garantilenir.
+
+        Args:
+            pipeline_stats: run_clustering_pipeline()'ın döndürdüğü clustering_log dict'i.
+                            None geçilirse istatistikler mevcut DB verisiyle hesaplanır.
 
         Returns:
-            Türkçe rapor metni (str). Kümelenmiş kayıt yoksa bilgilendirici mesaj.
+            Sabit yapılı Türkçe rapor metni (str).
         """
         async with self.db.session() as session:
             fr_repo = FeatureRequestRepository(session)
@@ -603,74 +640,89 @@ class FeatureRequestService:
             if not clustered:
                 return "Bu hafta kümelenmiş özellik talebi bulunamadı."
 
-            # Cluster bazında gruplama
+            # ── Cluster bazında gruplama ──────────────────────────────────────
             clusters: dict[int, list] = {}
             for record in clustered:
-                cid = record.cluster_id
-                if cid is None:
+                if record.cluster_id is None:
                     continue
-                clusters.setdefault(cid, []).append(record)
+                clusters.setdefault(record.cluster_id, []).append(record)
 
-            # Rapor datasını derle
-            cluster_summaries: list[str] = []
-            reported_ids: list[str] = []
+            # ── İstatistikler (tamamen kodda, LLM yok) ───────────────────────
+            total_clustered = len(clustered)
+            total_clusters = len(clusters)
 
-            for cid, records in sorted(clusters.items()):
+            if pipeline_stats:
+                # run_clustering_pipeline'dan gelen clustering_log
+                total_embedded = pipeline_stats.get("n_sentences", total_clustered)
+                # "Bu hafta alınan" = embedded + noise (pipeline'a giren toplam)
+                noise = pipeline_stats.get("noise_ratio", 0)
+                total_requests = (
+                    int(total_embedded / (1 - noise)) if noise < 1 else total_embedded
+                )
+            else:
+                # Fallback: sadece clustered kayıtlardan hesapla
+                total_embedded = total_clustered
+                total_requests = total_clustered
+
+            # ── Top 3 cluster (büyükten küçüğe) ─────────────────────────────
+            sorted_clusters = sorted(
+                clusters.items(), key=lambda x: len(x[1]), reverse=True
+            )
+            top3 = sorted_clusters[:3]
+
+            medals = ["🥇", "🥈", "🥉"]
+            top3_lines: list[str] = []
+
+            for i, (cid, records) in enumerate(top3):
                 label_record = await fcl_repo.get_by_cluster_id(cid)
                 label = label_record.label if label_record else f"Grup #{cid}"
+
+                sample_texts = [r.request_raw for r in records[:5]]
+                desc = await self._describe_cluster(cid, label, sample_texts)
+
                 fraud_flagged = [
                     r
                     for r in records
                     if r.fraud_score and r.fraud_score > FRAUD_THRESHOLD
                 ]
-
-                examples = "\n".join(f"  • {r.request_raw[:120]}" for r in records[:3])
                 fraud_note = (
-                    f"\n  ⚠️ {len(fraud_flagged)} fraud şüpheli kayıt var."
+                    f"\n   ⚠️ {len(fraud_flagged)} fraud şüpheli kayıt."
                     if fraud_flagged
                     else ""
                 )
-                cluster_summaries.append(
-                    f"*{label}* ({len(records)} talep)\n{examples}{fraud_note}"
+
+                top3_lines.append(
+                    f"{medals[i]} *{label}* — {len(records)} talep{fraud_note}\n"
+                    f"   {desc}"
                 )
+
+            # ── Raporlama işlemleri ──────────────────────────────────────────
+            reported_ids: list[str] = []
+            for cid, records in clusters.items():
+                label_record = await fcl_repo.get_by_cluster_id(cid)
+                if label_record:
+                    await fcl_repo.increment_report_count(cid)
                 for r in records:
                     reported_ids.append(r.id)
 
-                # report_count güncelle
-                if label_record:
-                    await fcl_repo.increment_report_count(cid)
-
-            # Groq ile rapor üret
-            report_body = "\n\n---\n\n".join(cluster_summaries)
-            system_prompt = (
-                "Sen bir topluluk yöneticisi asistanısın. Sana haftalık özellik talebi "
-                "kümelerini vereceğim. Her küme için başlık, talep sayısı ve örnekler var. "
-                "Bunları tek, akıcı, Türkçe bir yönetici raporu haline getir. "
-                "Fraud uyarıları varsa belirt. Markdown kullan."
-            )
-            user_prompt = (
-                f"Toplam {len(clustered)} adet kümelenmiş talep, "
-                f"{len(clusters)} farklı tema:\n\n{report_body}"
-            )
-
-            try:
-                report = await self.groq_client.quick_ask(system_prompt, user_prompt)
-            except Exception as exc:
-                self.logger.error(f"Rapor üretimi başarısız: {exc}", exc_info=True)
-                report = (
-                    "Rapor üretilirken yapay zeka servisinde hata oluştu.\n\n"
-                    + report_body
-                )
-
-            # Raporlanan kayıtların status'unu güncelle
             if reported_ids:
                 await fr_repo.mark_reported(reported_ids)
+
+            # ── Sabit şablon — yapı asla değişmez ───────────────────────────
+            report = (
+                f"📊 *Haftalık Özellik Talebi Raporu*\n\n"
+                f"📥 Bu hafta alınan istek sayısı: *{total_requests}*\n"
+                f"✅ Başarılı Embedding Sayısı: *{total_embedded}*\n"
+                f"🎯 Başarıyla Kümelenen İstek Sayısı: *{total_clustered}*\n"
+                f"🗂️ Toplam Küme Sayısı: *{total_clusters}*\n\n"
+                + "\n\n".join(top3_lines)
+            )
 
             self.logger.info(
                 "Admin raporu oluşturuldu.",
                 extra={
-                    "total_requests": len(clustered),
-                    "total_clusters": len(clusters),
+                    "total_requests": total_requests,
+                    "total_clusters": total_clusters,
                 },
             )
             return report
@@ -706,13 +758,10 @@ class FeatureRequestService:
 
         try:
             cr = await self.run_clustering_pipeline()
-            report_text = await self.generate_admin_report()
+            report_text = await self.generate_admin_report(
+                pipeline_stats=cr.get("clustering_log") if cr else None
+            )
             blocks = Layouts.feature_request_report(report_text)
-
-            if cr and "clustering_log" in cr:
-                blocks.extend(
-                    Layouts.feature_request_calibration_summary(cr["clustering_log"])
-                )
 
             settings = get_settings()
             for admin_id in settings.slack_admins:
