@@ -240,6 +240,7 @@ def _handle_list(client, user_id: str, channel_id: str) -> None:
     if not items:
         builder.add_text("_Bu ay henüz onaylanmış etkinlik yok._")
     else:
+        from ...utils.notifications import _calendar_url
         builder.add_divider()
         for evt, count in items:
             loc = _location_with_link_inline(evt)
@@ -251,7 +252,10 @@ def _handle_list(client, user_id: str, channel_id: str) -> None:
                 f"  <@{evt.creator_slack_id}>  · {count} ilgili{interested_marker}"
             )
             builder.add_text(line)
-        builder.add_divider()
+            cal_url = _calendar_url(evt)
+            builder.add_button("Katılacağım", "event_interest_btn", value=evt.id, style="primary")
+            builder.add_button("Google Takvime Ekle", "event_calendar_btn", value=evt.id, url=cal_url)
+            builder.add_divider()
         builder.add_context([f"Toplam: {len(items)} etkinlik"])
 
     client.chat_postEphemeral(channel=channel_id, user=user_id, text="Bu Ayın Etkinlikleri", blocks=builder.build())
