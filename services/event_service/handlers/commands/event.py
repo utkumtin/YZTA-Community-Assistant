@@ -266,6 +266,8 @@ def _handle_list(client, user_id: str, channel_id: str) -> None:
 # ---------------------------------------------------------------------------
 
 def _handle_my_list(client, user_id: str, channel_id: str) -> None:
+    from ...utils.notifications import _location_with_link_inline
+
     STATUS_LABELS = {
         "pending": "Onay Bekliyor",
         "approved": "Onaylandı",
@@ -279,14 +281,15 @@ def _handle_my_list(client, user_id: str, channel_id: str) -> None:
             repo = EventRepository(session)
             events = await repo.list_by_creator(user_id)
             interest_repo = EventInterestRepository(session)
+            user_interest_ids = await interest_repo.set_event_ids_by_user(user_id)
             result = []
             for evt in events:
                 count = await interest_repo.count_by_event(evt.id)
                 result.append((evt, count))
-            return result
+            return result, user_interest_ids
 
     try:
-        items = _run_async(_fetch())
+        items, user_interest_ids = _run_async(_fetch())
     except Exception as e:
         _logger.error("[CMD] my_list failed: %s", e)
         client.chat_postEphemeral(channel=channel_id, user=user_id, text="Etkinlikler yüklenemedi.")
@@ -300,17 +303,19 @@ def _handle_my_list(client, user_id: str, channel_id: str) -> None:
     else:
         builder.add_divider()
         for evt, count in items:
-            loc = _location_display(evt)
+            loc = _location_with_link_inline(evt)
             status_label = STATUS_LABELS.get(evt.status.value, evt.status.value)
+            interested_marker = " · ✓ ilgi gösterdin" if evt.id in user_interest_ids else ""
             line = (
-                f"• *{evt.id}* | *{evt.name}*\n"
-                f"  {evt.date.strftime('%d %B')} {evt.time.strftime('%H:%M')} · {loc} · {status_label}"
+                f"• *{evt.name}*\n"
+                f"  {evt.date.strftime('%d %B %Y')} · {evt.time.strftime('%H:%M')} · {loc}\n"
+                f"  {evt.description}\n"
+                f"  <@{evt.creator_slack_id}>  · {count} ilgili{interested_marker}\n"
+                f"  _{status_label}_"
             )
-            if count > 0:
-                line += f" · {count} ilgili"
             builder.add_text(line)
         builder.add_divider()
-        builder.add_context([f"_Toplam: {len(items)} etkinlik_"])
+        builder.add_context([f"Toplam: {len(items)} etkinlik"])
 
     client.chat_postEphemeral(channel=channel_id, user=user_id, text="Etkinliklerim", blocks=builder.build())
 
