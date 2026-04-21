@@ -47,7 +47,7 @@ from services.feature_request_service.utils.notifications import (
 
 # Constants
 
-WEEKLY_QUOTA = 500
+WEEKLY_QUOTA = 2
 SIMILARITY_THRESHOLD_WARNING = 0.80
 SIMILARITY_THRESHOLD_EXACT = 0.90
 FRAUD_THRESHOLD = 0.90
