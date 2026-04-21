@@ -27,12 +27,17 @@ class FeatureRequestRepository(BaseRepository[FeatureRequest]):
     model = FeatureRequest
 
     async def list_by_user_this_week(self, user_id: str) -> list[FeatureRequest]:
-        """Kullanıcının son 7 gün içinde eklediği talepleri listeler."""
+        """Kullanıcının son 7 gün içinde eklediği geçerli (kota düşen) talepleri listeler."""
         week_ago = datetime.utcnow() - timedelta(days=7)
         result = await self.session.execute(
             select(FeatureRequest)
             .where(FeatureRequest.user_id == user_id)
             .where(FeatureRequest.created_at >= week_ago)
+            .where(
+                FeatureRequest.status.in_(
+                    ["embedded", "clustered", "reported", "embedding_failed"]
+                )
+            )
         )
         return list(result.scalars().all())
 
@@ -46,7 +51,7 @@ class FeatureRequestRepository(BaseRepository[FeatureRequest]):
     async def list_embedded_vectors(self, user_id: str) -> list[FeatureRequest]:
         """
         Kullanıcının son 7 gün içinde eklediği ve başarılı bir şekilde
-        vektörleştirilmiş (request_embedded IS NOT NULL) kayıtlarını listeler.
+        vektörleştirilmiş kayıtlarını onaylanmış statülere göre listeler.
         Benzerlik (similarity) kontrolü vb. için kullanılır.
         """
         week_ago = datetime.utcnow() - timedelta(days=7)
@@ -55,6 +60,7 @@ class FeatureRequestRepository(BaseRepository[FeatureRequest]):
             .where(FeatureRequest.user_id == user_id)
             .where(FeatureRequest.created_at >= week_ago)
             .where(FeatureRequest.request_embedded.is_not(None))
+            .where(FeatureRequest.status.in_(["embedded", "clustered", "reported"]))
         )
         return list(result.scalars().all())
 
@@ -84,6 +90,30 @@ class FeatureRequestRepository(BaseRepository[FeatureRequest]):
             .values(status="reported")
         )
         await self.session.flush()
+
+    async def delete_pending_bypass(self, user_id: str) -> None:
+        """Kullanıcının askıda kalan pending_bypass kayıtlarını siler."""
+        from sqlalchemy import delete as sql_delete
+
+        await self.session.execute(
+            sql_delete(FeatureRequest)
+            .where(FeatureRequest.user_id == user_id)
+            .where(FeatureRequest.status == "pending_bypass")
+        )
+        await self.session.flush()
+
+    async def delete_stale_pending_bypass(self, hours: int = 24) -> int:
+        """Belirtilen saatten eski olan pending_bypass kayıtlarını donanım (hard) siler."""
+        from sqlalchemy import delete as sql_delete
+
+        cutoff = datetime.utcnow() - timedelta(hours=hours)
+        result = await self.session.execute(
+            sql_delete(FeatureRequest)
+            .where(FeatureRequest.status == "pending_bypass")
+            .where(FeatureRequest.created_at < cutoff)
+        )
+        await self.session.flush()
+        return result.rowcount
 
 
 class FeatureClusterLabelRepository(BaseRepository[FeatureClusterLabel]):

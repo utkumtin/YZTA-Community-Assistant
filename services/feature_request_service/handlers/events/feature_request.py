@@ -123,13 +123,12 @@ def handle_edit_submit(ack, body, client):
 
 
 @app.action("feature_edit_yes")
-def handle_edit_yes(ack, body, client):
+def handle_edit_yes(ack, body, client, respond):
     ack()
     action_value = body["actions"][0]["value"]
     # value is formatted as "existing_id|pending_id" or just existing_id for old formats
     parts = action_value.split("|")
     rid = parts[0]
-    # Optional: We could delete pending_id here using parts[1] if we wanted to
     channel_id = body.get("channel", {}).get("id", "")
     try:
         txt = run_async(_svc().get_request_text(rid))
@@ -137,12 +136,17 @@ def handle_edit_yes(ack, body, client):
             trigger_id=body["trigger_id"],
             view=Layouts.feature_request_edit_modal(txt, rid, channel_id),
         )
+        # Mesajdaki butonları pasifleştir (ephemeral mesaj uçar)
+        respond(
+            text="✏️ Fikrinizi düzenlemek için çıkan pencereyi kullanabilirsiniz.",
+            replace_original=True,
+        )
     except Exception as e:
         logger.error(f"Edit modal hatası: {e}", exc_info=True)
 
 
 @app.action("feature_edit_no")
-def handle_edit_no(ack, body, client):
+def handle_edit_no(ack, body, client, respond):
     ack()
     uid = body["user"]["id"]
     channel_id = body.get("channel", {}).get("id", "")
@@ -154,46 +158,35 @@ def handle_edit_no(ack, body, client):
     try:
         if pending_id and pending_id != "ignore":
             result = run_async(_svc().approve_pending_request(pending_id))
-            if result.get("status") == "approved":
-                send_notification(
-                    client,
-                    uid,
-                    channel_id,
-                    NotificationType.ACTION_RESULT,
-                    "✅ Yeni fikriniz sisteme kaydedildi!",
+            if result.get("status") in ("approved", "invalid_status"):
+                respond(
+                    text="✅ Yeni fikriniz sisteme kaydedildi! Teşekkürler.",
+                    replace_original=True,
                 )
             else:
-                send_notification(
-                    client,
-                    uid,
-                    channel_id,
-                    NotificationType.ACTION_RESULT,
-                    "Bypass edilemedi.",
+                respond(
+                    text="❌ İşlem yapılamadı. Tekrar deneyiniz.", replace_original=True
                 )
         else:
-            send_notification(
-                client,
-                uid,
-                channel_id,
-                NotificationType.ACTION_RESULT,
-                "💡 Tamam! `/cemilimyapar` komutu ile yeni fikir gönderebilirsin.",
+            respond(
+                text="💡 Tamam! `/cemilimyapar` komutu ile yeni fikir gönderebilirsin.",
+                replace_original=True,
             )
     except Exception as e:
         logger.error(f"Approve pending hatası: {e}", exc_info=True)
+        respond(
+            text="❌ İşlem sırasında teknik bir hata oluştu.", replace_original=True
+        )
 
 
 @app.action("feature_edit_cancel")
-def handle_edit_cancel(ack, body, client):
+def handle_edit_cancel(ack, body, client, respond):
     ack()
     uid = body["user"]["id"]
     channel_id = body.get("channel", {}).get("id", "")
-    if not channel_id:
-        channel_id = get_settings().slack_command_channels[0]
 
-    send_notification(
-        client,
-        uid,
-        channel_id,
-        NotificationType.ACTION_RESULT,
-        "🛑 İşlem iptal edildi. Yeni fikirlerinizi `/cemilimyapar` komutu ile bekliyoruz!",
+    # Kullanıcıya nötr mesaj göndererek butonları yok et
+    respond(
+        text="🛑 İşlem iptal edildi. Yeni fikirlerinizi bekliyoruz!",
+        replace_original=True,
     )

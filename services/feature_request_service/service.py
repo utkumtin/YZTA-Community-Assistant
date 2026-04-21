@@ -176,6 +176,9 @@ class FeatureRequestService:
                     # 4. Fraud tespiti
                     fraud_score = await self.detect_fraud(vector, user_id, repo)
 
+                    # Varolan eski pending_bypass taslaklarını temizle (race condition ve çift tıklama önleme)
+                    await repo.delete_pending_bypass(user_id)
+
                     # 5. pending_bypass olarak kaydet
                     pending_request = FeatureRequest(
                         user_id=user_id,
@@ -373,10 +376,14 @@ class FeatureRequestService:
                 )
                 continue
 
-        if most_similar_record and max_similarity > SIMILARITY_THRESHOLD_WARNING:
-            self.logger.debug(
-                f"Benzer kayıt bulundu (sim={max_similarity:.4f}).",
-                extra={"existing_id": most_similar_record.id},
+        if most_similar_record:
+            self.logger.info(
+                f"Benzerlik analizi tamamlandı (max_sim={max_similarity:.4f}).",
+                extra={
+                    "user_id": user_id,
+                    "existing_id": most_similar_record.id,
+                    "score": max_similarity,
+                },
             )
 
         return most_similar_record, float(max_similarity)
@@ -871,6 +878,20 @@ class FeatureRequestService:
             self.logger.info(
                 f"Embedding retry bitti: {success_count}/{len(failed_records)} kayıt kurtarıldı."
             )
+
+    async def cleanup_stale_pending_requests(self, hours: int = 24) -> None:
+        """Belirtilen saat süresinin dışına çıkmış çürük pending_bypass kayıtlarını siler."""
+        async with self.db.session() as session:
+            repo = FeatureRequestRepository(session)
+            deleted_count = await repo.delete_stale_pending_bypass(hours=hours)
+            if deleted_count > 0:
+                self.logger.info(
+                    f"Garbage collection bitti: {deleted_count} çöpe dönmüş pending_bypass silindi."
+                )
+            else:
+                self.logger.debug(
+                    "Garbage collection: Silinecek bekleyen taslak bulunamadı."
+                )
 
     async def check_clustering_failed(self) -> None:
         """status='clustering_failed' olan kayıtları kontrol eder ve hâlâ varsa uyarı gönderir."""
