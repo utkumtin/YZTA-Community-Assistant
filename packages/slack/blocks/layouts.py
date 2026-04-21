@@ -111,7 +111,9 @@ class Layouts:
         ]
 
     @staticmethod
-    def feature_request_similar(existing_text: str, request_id: str) -> List[Dict]:
+    def feature_request_similar(
+        existing_text: str, request_id: str, pending_id: str
+    ) -> List[Dict]:
         """Benzer özellik talebi bulunduğunda çıkan uyarı ve butonlar."""
         return [
             BlockBuilder.header("⚠️ Benzer Bir Fikrin Var"),
@@ -122,14 +124,40 @@ class Layouts:
             BlockBuilder.actions(
                 [
                     BlockBuilder.button(
-                        "Evet, düzenleyeyim ✏️",
+                        "✏️ Düzenle",
                         "feature_edit_yes",
-                        value=request_id,
+                        value=f"{request_id}|{pending_id}",
                         style="primary",
                     ),
                     BlockBuilder.button(
-                        "Hayır, yeni fikrim farklı 🆕",
+                        "🆕 Hayır, yeni fikrim farklı",
                         "feature_edit_no",
+                        value=pending_id,
+                    ),
+                ]
+            ),
+        ]
+
+    @staticmethod
+    def feature_request_exact_match(existing_text: str, request_id: str) -> List[Dict]:
+        """Çok yüksek benzerlik oranında çıkan kesin eşleşme uyarısı ve butonlar."""
+        return [
+            BlockBuilder.header("⚠️ Talebin Çok Benzer"),
+            BlockBuilder.section(
+                f"Bu fikri veya neredeyse aynısını zaten iletmişsiniz:\n\n> {existing_text}\n\n"
+                "İsterseniz eskisini düzenleyebilirsiniz veya bu işlemi iptal edebilirsiniz."
+            ),
+            BlockBuilder.actions(
+                [
+                    BlockBuilder.button(
+                        "✏️ Düzenle",
+                        "feature_edit_yes",
+                        value=f"{request_id}|None",
+                        style="primary",
+                    ),
+                    BlockBuilder.button(
+                        "❌ Vazgeç",
+                        "feature_edit_cancel",
                         value="ignore",
                     ),
                 ]
@@ -192,7 +220,7 @@ class Layouts:
                         "type": "mrkdwn",
                         "text": (
                             "👋 *Cemil'e bir özellik talebi gönder!*\n"
-                            "Topluluk asistanına ne eklemesini isterdin? "
+                            "Topluluk asistanına ne eklenmesini isterdin? "
                             "Fikrin haftalık raporlarda değerlendirilecek."
                         ),
                     },
@@ -226,7 +254,7 @@ class Layouts:
         existing_text: str, request_id: str, channel_id: str = ""
     ) -> Dict:
         """
-        'Evet, düzenleyeyim' butonuyla açılan düzenleme modal'ı.
+        'Düzenle' butonuyla açılan düzenleme modal'ı.
         request_id, private_metadata olarak saklanır.
         Dönen değer bir blok listesi değil, modal dict'idir (views_open'a verilir).
         """
@@ -234,15 +262,15 @@ class Layouts:
             "type": "modal",
             "callback_id": "feature_request_edit_modal",
             "private_metadata": f"{request_id}|{channel_id}",
-            "title": {"type": "plain_text", "text": "Fikri Düzenle ✏️", "emoji": True},
-            "submit": {"type": "plain_text", "text": "Güncelle ✅", "emoji": True},
-            "close": {"type": "plain_text", "text": "Vazgeç", "emoji": True},
+            "title": {"type": "plain_text", "text": "✏️ Fikri Düzenle", "emoji": True},
+            "submit": {"type": "plain_text", "text": "✅ Güncelle", "emoji": True},
+            "close": {"type": "plain_text", "text": "❌ Vazgeç", "emoji": True},
             "blocks": [
                 {
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": "Mevcut fikrin aşağıda gösteriliyor. Düzenleyip güncelle!",
+                        "text": "Mevcut fikrin aşağıda gösteriliyor. Düzenleyip güncelleyebilirsin!",
                     },
                 },
                 {"type": "divider"},

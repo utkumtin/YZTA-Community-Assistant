@@ -48,7 +48,8 @@ from services.feature_request_service.utils.notifications import (
 # Constants
 
 WEEKLY_QUOTA = 500
-SIMILARITY_THRESHOLD = 0.85
+SIMILARITY_THRESHOLD_WARNING = 0.80
+SIMILARITY_THRESHOLD_EXACT = 0.90
 FRAUD_THRESHOLD = 0.90
 FRAUD_WINDOW_DAYS = 7
 
@@ -108,7 +109,8 @@ class FeatureRequestService:
 
         Returns:
             status="created"       → {"status": "created", "request_id": "FRQ-..."}
-            status="similar_found" → {"status": "similar_found", "existing_id": ..., "existing_text": ...}
+            status="similar_found" → {"status": "similar_found", "existing_id": ..., "existing_text": ..., "pending_id": ...}
+            status="exact_match"   → {"status": "exact_match", "existing_id": ..., "existing_text": ...}
             status="quota_exceeded"→ {"status": "quota_exceeded", "used": N, "max": N}
         """
         from packages.database.repository.slack import SlackUserRepository
@@ -144,17 +146,53 @@ class FeatureRequestService:
                 return {"status": "created", "request_id": failed_req.id}
 
             # 3. Benzerlik kontrolü
-            similar = await self.find_similar_this_week(user_id, vector, repo)
-            if similar is not None:
-                self.logger.info(
-                    "Benzer kayıt bulundu.",
-                    extra={"user_id": user_id, "similar_id": similar.id},
-                )
-                return {
-                    "status": "similar_found",
-                    "existing_id": similar.id,
-                    "existing_text": similar.request_raw,
-                }
+            similar_record, similarity_score = await self.find_similar_this_week(
+                user_id, vector, repo
+            )
+            if similar_record is not None:
+                if similarity_score >= SIMILARITY_THRESHOLD_EXACT:
+                    self.logger.info(
+                        "Birebir aynı (exact match) kayıt bulundu.",
+                        extra={
+                            "user_id": user_id,
+                            "similar_id": similar_record.id,
+                            "score": similarity_score,
+                        },
+                    )
+                    return {
+                        "status": "exact_match",
+                        "existing_id": similar_record.id,
+                        "existing_text": similar_record.request_raw,
+                    }
+                elif similarity_score >= SIMILARITY_THRESHOLD_WARNING:
+                    self.logger.info(
+                        "Benzer kayıt bulundu (gri alan).",
+                        extra={
+                            "user_id": user_id,
+                            "similar_id": similar_record.id,
+                            "score": similarity_score,
+                        },
+                    )
+                    # 4. Fraud tespiti
+                    fraud_score = await self.detect_fraud(vector, user_id, repo)
+
+                    # 5. pending_bypass olarak kaydet
+                    pending_request = FeatureRequest(
+                        user_id=user_id,
+                        request_raw=raw_text,
+                        request_embedded=vector.tolist(),
+                        status="pending_bypass",
+                        fraud_score=fraud_score,
+                    )
+                    session.add(pending_request)
+                    await session.flush()
+
+                    return {
+                        "status": "similar_found",
+                        "existing_id": similar_record.id,
+                        "existing_text": similar_record.request_raw,
+                        "pending_id": pending_request.id,
+                    }
 
             # 4. Fraud tespiti
             fraud_score = await self.detect_fraud(vector, user_id, repo)
@@ -189,6 +227,31 @@ class FeatureRequestService:
                     f"ID'si '{request_id}' olan Feature Request kaydı bulunamadı."
                 )
             return request.request_raw
+
+    async def approve_pending_request(self, pending_id: str) -> dict[str, Any]:
+        """
+        'Hayır, farklı' butonuyla bypass edilmek istenen pending_bypass
+        statüsündeki kaydın statüsünü 'embedded' yaparak sisteme dahil eder.
+        """
+        async with self.db.session() as session:
+            from packages.database.repository.feature_request import (
+                FeatureRequestRepository,
+            )
+
+            repo = FeatureRequestRepository(session)
+            req = await repo.get(pending_id)
+            if not req:
+                return {"status": "not_found"}
+
+            if req.status == "pending_bypass":
+                req.status = "embedded"
+                await session.flush()
+                self.logger.info(
+                    "Pending bypass onaylandı.", extra={"request_id": pending_id}
+                )
+                return {"status": "approved"}
+            else:
+                return {"status": "invalid_status", "current_status": req.status}
 
     async def update_request(self, request_id: str, new_text: str) -> dict[str, Any]:
         """
@@ -268,10 +331,10 @@ class FeatureRequestService:
         user_id: str,
         new_vector: np.ndarray,
         repo: FeatureRequestRepository | None = None,
-    ):
+    ) -> tuple[FeatureRequest | None, float]:
         """
-        Kullanıcının bu haftaki kayıtları arasında new_vector'e çok benzer
-        (cosine similarity > SIMILARITY_THRESHOLD) bir kayıt arar.
+        Kullanıcının bu haftaki kayıtları arasında new_vector'e ne kadar benzediğini ölçer
+        ve en yüksek benzerlik skoruna sahip kaydı ile skorunu döner.
 
         Args:
             user_id:    Arama yapılacak kullanıcının DB id'si.
@@ -279,7 +342,7 @@ class FeatureRequestService:
             repo:       Opsiyonel inject edilmiş repository.
 
         Returns:
-            Benzer kayıt bulunursa FeatureRequest nesnesi, yoksa None.
+            (En benzer FeatureRequest kaydı, Benzerlik Skoru) tuple olarak döner. Yoksa (None, 0.0) döner.
         """
         if repo is not None:
             existing = await repo.list_embedded_vectors(user_id)
@@ -289,6 +352,9 @@ class FeatureRequestService:
                     session
                 ).list_embedded_vectors(user_id)
 
+        max_similarity = 0.0
+        most_similar_record = None
+
         for record in existing:
             if record.request_embedded is None:
                 continue
@@ -297,12 +363,9 @@ class FeatureRequestService:
                 similarity = self.vector_client.cosine_similarity(
                     new_vector, existing_vec
                 )
-                if similarity > SIMILARITY_THRESHOLD:
-                    self.logger.debug(
-                        f"Benzer kayıt bulundu (sim={similarity:.4f}).",
-                        extra={"existing_id": record.id},
-                    )
-                    return record
+                if similarity > max_similarity:
+                    max_similarity = similarity
+                    most_similar_record = record
             except Exception as exc:
                 self.logger.warning(
                     f"Benzerlik hesaplama hatası (atlanıyor): {exc}",
@@ -310,7 +373,13 @@ class FeatureRequestService:
                 )
                 continue
 
-        return None
+        if most_similar_record and max_similarity > SIMILARITY_THRESHOLD_WARNING:
+            self.logger.debug(
+                f"Benzer kayıt bulundu (sim={max_similarity:.4f}).",
+                extra={"existing_id": most_similar_record.id},
+            )
+
+        return most_similar_record, float(max_similarity)
 
     async def detect_fraud(
         self,

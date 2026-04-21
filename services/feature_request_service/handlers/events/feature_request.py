@@ -61,7 +61,20 @@ def handle_submit(ack, body, client):
                 channel_id,
                 NotificationType.ACTION_RESULT,
                 "Benzer var.",
-                Layouts.feature_request_similar(r["existing_text"], r["existing_id"]),
+                Layouts.feature_request_similar(
+                    r["existing_text"], r["existing_id"], r["pending_id"]
+                ),
+            )
+        case "exact_match":
+            send_notification(
+                client,
+                uid,
+                channel_id,
+                NotificationType.ACTION_RESULT,
+                "Çok benzer talep.",
+                Layouts.feature_request_exact_match(
+                    r["existing_text"], r["existing_id"]
+                ),
             )
         case "quota_exceeded":
             send_notification(
@@ -112,7 +125,11 @@ def handle_edit_submit(ack, body, client):
 @app.action("feature_edit_yes")
 def handle_edit_yes(ack, body, client):
     ack()
-    rid = body["actions"][0]["value"]
+    action_value = body["actions"][0]["value"]
+    # value is formatted as "existing_id|pending_id" or just existing_id for old formats
+    parts = action_value.split("|")
+    rid = parts[0]
+    # Optional: We could delete pending_id here using parts[1] if we wanted to
     channel_id = body.get("channel", {}).get("id", "")
     try:
         txt = run_async(_svc().get_request_text(rid))
@@ -132,10 +149,51 @@ def handle_edit_no(ack, body, client):
     if not channel_id:
         channel_id = get_settings().slack_command_channels[0]
 
+    pending_id = body["actions"][0]["value"]
+
+    try:
+        if pending_id and pending_id != "ignore":
+            result = run_async(_svc().approve_pending_request(pending_id))
+            if result.get("status") == "approved":
+                send_notification(
+                    client,
+                    uid,
+                    channel_id,
+                    NotificationType.ACTION_RESULT,
+                    "✅ Yeni fikriniz sisteme kaydedildi!",
+                )
+            else:
+                send_notification(
+                    client,
+                    uid,
+                    channel_id,
+                    NotificationType.ACTION_RESULT,
+                    "Bypass edilemedi.",
+                )
+        else:
+            send_notification(
+                client,
+                uid,
+                channel_id,
+                NotificationType.ACTION_RESULT,
+                "💡 Tamam! `/cemilimyapar` komutu ile yeni fikir gönderebilirsin.",
+            )
+    except Exception as e:
+        logger.error(f"Approve pending hatası: {e}", exc_info=True)
+
+
+@app.action("feature_edit_cancel")
+def handle_edit_cancel(ack, body, client):
+    ack()
+    uid = body["user"]["id"]
+    channel_id = body.get("channel", {}).get("id", "")
+    if not channel_id:
+        channel_id = get_settings().slack_command_channels[0]
+
     send_notification(
         client,
         uid,
         channel_id,
         NotificationType.ACTION_RESULT,
-        "Tamam! `/cemilimyapar` ile yeni fikir gönderebilirsin. 💡",
+        "🛑 İşlem iptal edildi. Yeni fikirlerinizi `/cemilimyapar` komutu ile bekliyoruz!",
     )
