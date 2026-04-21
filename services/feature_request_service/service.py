@@ -831,7 +831,7 @@ class FeatureRequestService:
                 )
 
                 top3_lines.append(
-                    f"{medals[i]} *{label}* — {len(records)} talep{fraud_note}\n"
+                    f"{medals[i]} *{label}* (ID: {cid}) — {len(records)} talep{fraud_note}\n"
                     f"   {desc}"
                 )
 
@@ -866,6 +866,24 @@ class FeatureRequestService:
                 },
             )
             return report
+
+    async def get_cluster_details(self, cluster_id: int) -> dict[str, Any]:
+        """
+        Belirtilen cluster_id'ye ait tüm talepleri ve etiketleri getirir.
+        """
+        async with self.db.session() as session:
+            fr_repo = FeatureRequestRepository(session)
+            fcl_repo = FeatureClusterLabelRepository(session)
+
+            requests = await fr_repo.list_by_cluster_id(cluster_id)
+            label_record = await fcl_repo.get_by_cluster_id(cluster_id)
+            label = label_record.label if label_record else f"Grup #{cluster_id}"
+
+            return {
+                "cluster_id": cluster_id,
+                "label": label,
+                "requests": requests,
+            }
 
     # ==========================================================================
     # CRON YARDIMCILARI MANTIĞI

@@ -201,6 +201,35 @@ class Layouts:
         return blocks
 
     @staticmethod
+    def feature_cluster_details(
+        cluster_id: int, label: str, requests: list
+    ) -> List[Dict]:
+        """Bir özelliğe ait tüm talepleri listeleyen admin detay layout'u."""
+        blocks = [
+            BlockBuilder.header(f"🔍 Cluster #{cluster_id} Detayları"),
+            BlockBuilder.section(
+                f"*Küme Adı:* {label}\n*Toplam Talep:* {len(requests)}"
+            ),
+        ]
+
+        items_text = ""
+        for i, req in enumerate(requests, 1):
+            fraud_marker = " ⚠️" if req.fraud_score and req.fraud_score > 0.8 else ""
+            line_text = f"*{i}.* <@{req.user_id}>{fraud_marker}: {req.request_raw}\n"
+
+            if len(items_text) + len(line_text) > 2900:
+                blocks.append(BlockBuilder.section(items_text.strip()))
+                items_text = line_text
+            else:
+                items_text += line_text
+
+        if items_text.strip():
+            blocks.append(BlockBuilder.section(items_text.strip()))
+
+        blocks.append(BlockBuilder.divider())
+        return blocks
+
+    @staticmethod
     def feature_request_modal(channel_id: str = "") -> Dict:
         """
         /cemilimyapar komutuyla açılan özellik talebi modal'ı.

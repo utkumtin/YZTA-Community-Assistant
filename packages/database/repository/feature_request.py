@@ -6,6 +6,7 @@ METODLAR
   FeatureRequestRepository:
     list_by_user_this_week(user_id)  → Kullanıcının son 7 gündeki kayıtlarını getirir.
     list_by_status(status)           → Belirtilen durumdaki tüm talepleri getirir.
+    list_by_cluster_id(cluster_id)   → Belirli bir cluster_id'ye sahip tüm kayıtları getirir.
     list_embedded_vectors(user_id)   → Kullanıcının son 7 gündeki gömülü (embedded) vektörleri olan taleplerini getirir.
     update_cluster(request_id, cluster_id) → Talebe cluster atar ve status'u clustered yapar.
     mark_reported(request_ids)       → Verilen taleplerin status'unu reported yapar.
@@ -45,6 +46,13 @@ class FeatureRequestRepository(BaseRepository[FeatureRequest]):
         """Belirtilen statüdeki (ör. embedded, clustered vb.) tüm talepleri getirir."""
         result = await self.session.execute(
             select(FeatureRequest).where(FeatureRequest.status == status)
+        )
+        return list(result.scalars().all())
+
+    async def list_by_cluster_id(self, cluster_id: int) -> list[FeatureRequest]:
+        """Belirtilen cluster_id'ye sahip tüm talepleri getirir (statü bağımsız)."""
+        result = await self.session.execute(
+            select(FeatureRequest).where(FeatureRequest.cluster_id == cluster_id)
         )
         return list(result.scalars().all())
 

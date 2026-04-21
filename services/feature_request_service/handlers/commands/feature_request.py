@@ -53,13 +53,50 @@ def handle_cemil_report(ack, body, client):
             "❌ Bu komut sadece adminler içindir.",
         )
         return
+    if txt.startswith("cluster-details"):
+        parts = txt.split()
+        if len(parts) < 2 or not parts[1].isdigit():
+            send_notification(
+                client,
+                uid,
+                uid,
+                NotificationType.COMMAND_ERROR,
+                "Geçersiz ID! Kullanım: `/cemil-report cluster-details <id>`",
+            )
+            return
+
+        cluster_id = int(parts[1])
+        try:
+            details = run_async(_svc().get_cluster_details(cluster_id))
+            blocks = Layouts.feature_cluster_details(
+                details["cluster_id"], details["label"], details["requests"]
+            )
+            send_notification(
+                client,
+                uid,
+                uid,
+                NotificationType.SYSTEM_REPORT,
+                "Cluster Detayları",
+                blocks,
+            )
+        except Exception as e:
+            logger.error(f"Cluster detay hatası: {e}", exc_info=True)
+            send_notification(
+                client,
+                uid,
+                uid,
+                NotificationType.COMMAND_ERROR,
+                "❌ Cluster detayı alınamadı.",
+            )
+        return
+
     if txt != "feature-requests":
         send_notification(
             client,
             uid,
             uid,
             NotificationType.COMMAND_ERROR,
-            f"Bilinmeyen: `{txt}`\nKullanım: `/cemil-report feature-requests`",
+            f"Bilinmeyen: `{txt}`\nKullanım: `/cemil-report feature-requests` veya `/cemil-report cluster-details <id>`",
         )
         return
     try:
