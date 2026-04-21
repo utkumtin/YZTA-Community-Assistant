@@ -448,7 +448,7 @@ class FeatureRequestService:
     # CLUSTERING PIPELINE
     # ==========================================================================
 
-    async def run_clustering_pipeline(self) -> dict[str, Any]:
+    async def run_clustering_pipeline(self, is_preview: bool = False) -> dict[str, Any]:
         """
         status='embedded' olan tüm kayıtları kümeleme pipeline'ından geçirir.
 
@@ -475,7 +475,13 @@ class FeatureRequestService:
             embedded = await fr_repo.list_by_status("embedded")
             if not embedded:
                 self.logger.info("Kümelenecek kayıt yok.")
-                return {"clustered": 0, "noise": 0, "new_labels": 0}
+                return {
+                    "clustered": 0,
+                    "noise": 0,
+                    "new_labels": 0,
+                    "preview_records": [],
+                    "preview_labels": {},
+                }
 
             # --- Vektör matrisini oluştur ---
             vectors = []
@@ -497,7 +503,13 @@ class FeatureRequestService:
                 self.logger.info(
                     f"Kümeleme için yeterli kayıt yok (mevcut={len(vectors)}, min=3)."
                 )
-                return {"clustered": 0, "noise": len(vectors), "new_labels": 0}
+                return {
+                    "clustered": 0,
+                    "noise": len(vectors),
+                    "new_labels": 0,
+                    "preview_records": [],
+                    "preview_labels": {},
+                }
 
             # --- L2 normalizasyon ---
             matrix = np.array(vectors, dtype=np.float32)
@@ -524,12 +536,19 @@ class FeatureRequestService:
                 reduced = reducer.fit_transform(matrix)
             except Exception as exc:
                 self.logger.error(f"UMAP hatası: {exc}", exc_info=True)
-                for req_id in valid_ids:
-                    record = await fr_repo.get(req_id)
-                    if record:
-                        record.status = "clustering_failed"
-                await session.flush()
-                return {"clustered": 0, "noise": len(valid_ids), "new_labels": 0}
+                if not is_preview:
+                    for req_id in valid_ids:
+                        record = await fr_repo.get(req_id)
+                        if record:
+                            record.status = "clustering_failed"
+                    await session.flush()
+                return {
+                    "clustered": 0,
+                    "noise": len(valid_ids),
+                    "new_labels": 0,
+                    "preview_records": [],
+                    "preview_labels": {},
+                }
 
             # --- HDBSCAN kümeleme ---
             self.logger.info("HDBSCAN kümeleme başlatılıyor...")
@@ -543,32 +562,52 @@ class FeatureRequestService:
                 labels = clusterer.fit_predict(reduced)  # -1 = noise
             except Exception as exc:
                 self.logger.error(f"HDBSCAN hatası: {exc}", exc_info=True)
-                return {"clustered": 0, "noise": len(valid_ids), "new_labels": 0}
+                return {
+                    "clustered": 0,
+                    "noise": len(valid_ids),
+                    "new_labels": 0,
+                    "preview_records": [],
+                    "preview_labels": {},
+                }
+
+            # İndeks kaymasını önlemek için id'den kayda erişimi sağlayan sözlük (harita) kur
+            record_by_id = {r.id: r for r in embedded}
 
             # --- DB güncelleme ---
             clustered_count = 0
             noise_count = 0
+
+            preview_records = []
+            preview_labels = {}
+
             for req_id, cluster_label in zip(valid_ids, labels):
                 if cluster_label == -1:
                     noise_count += 1
                     # Noise kayıtlar cluster_id=NULL, status='embedded' kalır
                     continue
-                await fr_repo.update_cluster(req_id, int(cluster_label))
+                if not is_preview:
+                    await fr_repo.update_cluster(req_id, int(cluster_label))
+                else:
+                    # Sadece memory üzerinde değer atıyoruz
+                    req_obj = record_by_id[req_id]
+                    req_obj.cluster_id = int(cluster_label)
+                    preview_records.append(req_obj)
                 clustered_count += 1
 
             # --- Yeni cluster'lar için Groq label üret ---
             unique_clusters = set(int(lbl) for lbl in labels if lbl != -1)
             new_labels_count = 0
 
-            # İndeks kaymasını önlemek için id'den kayda erişimi sağlayan sözlük (harita) kur
-            record_by_id = {r.id: r for r in embedded}
-
             for cid in unique_clusters:
                 existing_label = await fcl_repo.get_by_cluster_id(cid)
+
+                # Preview modundaysa ve label zaten var ise (büyük olasılıkla olmaz çünkü resetleniyor) sadece alıp preview'a at
                 if existing_label is not None:
+                    if is_preview:
+                        preview_labels[cid] = existing_label.label
                     continue  # Daha önce üretilmiş, tekrar üretme
 
-                # Bu cluster'a ait örnek talepleri bul
+                # Önceden üretilmemişse üret
                 cluster_indices = [i for i, lbl in enumerate(labels) if lbl == cid]
                 sample_valid_ids = [
                     valid_ids[i] for i in cluster_indices[:5]
@@ -578,14 +617,18 @@ class FeatureRequestService:
 
                 label_text = await self._generate_cluster_label(cid, sample_texts)
 
-                new_label = FeatureClusterLabel(
-                    cluster_id=cid,
-                    label=label_text,
-                    generated_at=datetime.utcnow(),
-                    report_count=0,
-                )
-                session.add(new_label)
-                await session.flush()
+                if not is_preview:
+                    new_label = FeatureClusterLabel(
+                        cluster_id=cid,
+                        label=label_text,
+                        generated_at=datetime.utcnow(),
+                        report_count=0,
+                    )
+                    session.add(new_label)
+                    await session.flush()
+                else:
+                    preview_labels[cid] = label_text
+
                 new_labels_count += 1
 
             self.logger.info(
@@ -636,6 +679,8 @@ class FeatureRequestService:
                 "noise": noise_count,
                 "new_labels": new_labels_count,
                 "clustering_log": clustering_log,
+                "preview_records": preview_records if is_preview else [],
+                "preview_labels": preview_labels if is_preview else {},
             }
 
     async def _generate_cluster_label(
@@ -693,7 +738,12 @@ class FeatureRequestService:
     # ADMIN RAPORU
     # ==========================================================================
 
-    async def generate_admin_report(self, pipeline_stats: dict | None = None) -> str:
+    async def generate_admin_report(
+        self,
+        pipeline_stats: dict | None = None,
+        is_preview: bool = False,
+        preview_data: dict | None = None,
+    ) -> str:
         """
         status='clustered' olan kayıtlardan yapısı sabit bir Türkçe yönetici raporu üretir.
 
@@ -712,7 +762,11 @@ class FeatureRequestService:
             fr_repo = FeatureRequestRepository(session)
             fcl_repo = FeatureClusterLabelRepository(session)
 
-            clustered = await fr_repo.list_by_status("clustered")
+            if is_preview and preview_data:
+                clustered = preview_data.get("preview_records", [])
+            else:
+                clustered = await fr_repo.list_by_status("clustered")
+
             if not clustered:
                 return "Bu hafta kümelenmiş özellik talebi bulunamadı."
 
@@ -750,8 +804,17 @@ class FeatureRequestService:
             top3_lines: list[str] = []
 
             for i, (cid, records) in enumerate(top3):
-                label_record = await fcl_repo.get_by_cluster_id(cid)
-                label = label_record.label if label_record else f"Grup #{cid}"
+                label = f"Grup #{cid}"
+                if (
+                    is_preview
+                    and preview_data
+                    and cid in preview_data.get("preview_labels", {})
+                ):
+                    label = preview_data["preview_labels"][cid]
+                else:
+                    label_record = await fcl_repo.get_by_cluster_id(cid)
+                    if label_record:
+                        label = label_record.label
 
                 sample_texts = [r.request_raw for r in records[:5]]
                 desc = await self._describe_cluster(cid, label, sample_texts)
@@ -773,16 +836,17 @@ class FeatureRequestService:
                 )
 
             # ── Raporlama işlemleri ──────────────────────────────────────────
-            reported_ids: list[str] = []
-            for cid, records in clusters.items():
-                label_record = await fcl_repo.get_by_cluster_id(cid)
-                if label_record:
-                    await fcl_repo.increment_report_count(cid)
-                for r in records:
-                    reported_ids.append(r.id)
+            if not is_preview:
+                reported_ids: list[str] = []
+                for cid, records in clusters.items():
+                    label_record = await fcl_repo.get_by_cluster_id(cid)
+                    if label_record:
+                        await fcl_repo.increment_report_count(cid)
+                    for r in records:
+                        reported_ids.append(r.id)
 
-            if reported_ids:
-                await fr_repo.mark_reported(reported_ids)
+                if reported_ids:
+                    await fr_repo.mark_reported(reported_ids)
 
             # ── Sabit şablon — yapı asla değişmez ───────────────────────────
             report = (
