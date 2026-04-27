@@ -16,16 +16,9 @@ from ..logger import _logger
 
 def _get_smtp() -> SmtpClient | None:
     """SMTP client'i doner, devre disiysa None."""
-    s = get_settings()
-    if not s.smtp_email or not s.smtp_password:
+    if not get_settings().smtp_enabled:
         return None
-    return SmtpClient(
-        email=s.smtp_email,
-        password=s.smtp_password,
-        host=s.smtp_host,
-        port=s.smtp_port,
-        timeout=s.smtp_timeout,
-    )
+    return SmtpClient()
 
 
 def _location_label(event: Event) -> str:
