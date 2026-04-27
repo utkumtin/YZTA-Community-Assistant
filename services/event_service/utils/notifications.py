@@ -125,7 +125,6 @@ def post_cancellation(event: Event, cancelled_by_slack_id: str) -> None:
         f"*İptal Eden:* <@{cancelled_by_slack_id}>\n\n"
         "Bu etkinlik iptal edilmiştir."
     )
-    builder.add_context([f"_{event.id}_"])
 
     blocks = builder.build()
     for ch in get_announcement_channels(event):

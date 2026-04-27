@@ -588,7 +588,7 @@ def handle_cancel_modal(ack: Ack, body: dict, client, view):
                 f"*{evt.name}*\n"
                 f"{evt.date.strftime('%d %B %Y')} · {evt.time.strftime('%H:%M')}\n"
                 f"*Düzenleyen:* <@{evt.creator_slack_id}>\n"
-                f"*İptal Eden:* <@{user_id}>\n_{evt.id}_"
+                f"*İptal Eden:* <@{user_id}>"
             ),
         )
     except Exception as e:
@@ -598,14 +598,14 @@ def handle_cancel_modal(ack: Ack, body: dict, client, view):
     _send_dm(
         user_id,
         f"Etkinlik başarıyla iptal edildi.\n*{evt.name}*\n"
-        f"{evt.date.strftime('%d %B %Y')} · {evt.time.strftime('%H:%M')}\n_{evt.id}_"
+        f"{evt.date.strftime('%d %B %Y')} · {evt.time.strftime('%H:%M')}"
     )
 
     # Admin iptal ettiyse sahibe DM
     if is_admin and evt.creator_slack_id != user_id:
         _send_dm(
             evt.creator_slack_id,
-            f"Etkinliğiniz admin tarafından iptal edildi.\n*{evt.name}*\n_{evt.id}_"
+            f"Etkinliğiniz admin tarafından iptal edildi.\n*{evt.name}*"
         )
 
     # Ilgi gosterenlere iptal e-postasi
