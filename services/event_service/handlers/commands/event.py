@@ -663,9 +663,9 @@ def _handle_help(client, user_id: str, channel_id: str) -> None:
         "İlgi formu açar. Önümüzdeki 1 ay içinde gerçekleşecek ve henüz ilgi göstermediğiniz "
         "etkinlikler listelenir. Her etkinliğe 1 kez ilgi gösterilebilir.\n\n"
         "*`/event update`*\n"
-        "Güncelleme formu açar. Sahip kendi etkinliklerini, admin tüm aktif etkinlikleri görüp güncelleyebilir.\n\n"
+        "Güncelleme formu açar. Etkinlik sahibi kendi etkinliklerini görüp güncelleyebilir.\n\n"
         "*`/event cancel`*\n"
-        "İptal formu açar. Sahip kendi etkinliklerini, admin tüm aktif etkinlikleri görüp iptal edebilir.\n\n"
+        "İptal formu açar. Etkinlik sahibi kendi etkinliklerini görüp iptal edebilir.\n\n"
         "*`/event help`*\n"
         "Bu yardım mesajını göster."
     )

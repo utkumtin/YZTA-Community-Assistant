@@ -165,7 +165,7 @@ async def send_reminder_email_async(slack_id: str, event: Event, reminder_type: 
         schema = EmailSchema(to=user_email, subject=subject, body=body)
         smtp.send(schema)
     except Exception as e:
-        _logger.error("[EVT-EMAIL] Hatirlatma gonderilemedi: %s", e)
+        _logger.error("[EVT-EMAIL] Hatırlatma gönderilemedi: %s", e)
 
 
 async def send_user_status_email_async(slack_id: str, event: Event, status: str, admin_note: str | None = None) -> None:
@@ -197,7 +197,7 @@ def _send_status_email(smtp: SmtpClient, user_email: str, event: Event, status: 
         schema = EmailSchema(to=user_email, subject=subject, body=body)
         smtp.send(schema)
     except Exception as e:
-        _logger.error("[EVT-EMAIL] Kullanici bildirimi gonderilemedi: %s", e)
+        _logger.error("[EVT-EMAIL] Kullanıcı bildirimi gönderilemedi: %s", e)
 
 
 def _send_cancellation(smtp: SmtpClient, user_email: str, event: Event) -> None:
@@ -211,7 +211,7 @@ def _send_cancellation(smtp: SmtpClient, user_email: str, event: Event) -> None:
         schema = EmailSchema(to=user_email, subject=subject, body=body)
         smtp.send(schema)
     except Exception as e:
-        _logger.error("[EVT-EMAIL] Iptal bildirimi gonderilemedi: %s", e)
+        _logger.error("[EVT-EMAIL] İptal bildirimi gönderilemedi: %s", e)
 
 
 def _send_update(smtp: SmtpClient, user_email: str, event: Event) -> None:

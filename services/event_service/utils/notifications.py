@@ -111,7 +111,7 @@ def post_announcement(event: Event, interest_count: int = 0) -> None:
         try:
             slack_client.bot_client.chat_postMessage(channel=ch, text=text, blocks=blocks)
         except Exception as e:
-            _logger.error("[EVT-NOTIFY] Duyuru gonderilemedi channel=%s: %s", ch, e)
+            _logger.error("[EVT-NOTIFY] Duyuru gönderilemedi channel=%s: %s", ch, e)
 
 
 def post_cancellation(event: Event, cancelled_by_slack_id: str) -> None:
@@ -134,7 +134,7 @@ def post_cancellation(event: Event, cancelled_by_slack_id: str) -> None:
                 channel=ch, text=f"Etkinlik İptal: {event.name}", blocks=blocks,
             )
         except Exception as e:
-            _logger.error("[EVT-NOTIFY] Iptal duyurusu gonderilemedi channel=%s: %s", ch, e)
+            _logger.error("[EVT-NOTIFY] İptal duyurusu gönderilemedi channel=%s: %s", ch, e)
 
 
 def post_update_announcement(event: Event) -> None:
@@ -169,7 +169,7 @@ def post_update_announcement(event: Event) -> None:
                 channel=ch, text=f"Etkinlik Güncellendi: {event.name}", blocks=blocks,
             )
         except Exception as e:
-            _logger.error("[EVT-NOTIFY] Guncelleme duyurusu gonderilemedi channel=%s: %s", ch, e)
+            _logger.error("[EVT-NOTIFY] Güncelleme duyurusu gönderilemedi channel=%s: %s", ch, e)
 
 
 def send_dm(slack_id: str, text: str, blocks: list | None = None) -> None:
@@ -177,7 +177,7 @@ def send_dm(slack_id: str, text: str, blocks: list | None = None) -> None:
     try:
         slack_client.bot_client.chat_postMessage(channel=slack_id, text=text, blocks=blocks)
     except Exception as e:
-        _logger.error("[EVT-NOTIFY] DM gonderilemedi user=%s: %s", slack_id, e)
+        _logger.error("[EVT-NOTIFY] DM gönderilemedi user=%s: %s", slack_id, e)
 
 
 def post_admin_request(event: Event) -> None:
@@ -219,4 +219,4 @@ def post_admin_request(event: Event) -> None:
             blocks=blocks,
         )
     except Exception as e:
-        _logger.error("[EVT-NOTIFY] Admin talebi gonderilemedi: %s", e)
+        _logger.error("[EVT-NOTIFY] Admin talebi gönderilemedi: %s", e)
