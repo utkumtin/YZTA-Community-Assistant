@@ -23,6 +23,11 @@ class SystemSettings(BaseSettings):
     smtp_timeout: int = Field(10, ge=1, description="SMTP bağlantı zaman aşımı (saniye)")
     admin_email: Optional[str] = Field(None, description="Admin e-posta adresi (virgülle ayrılmış birden fazla)")
 
+    @property
+    def smtp_enabled(self) -> bool:
+        """SMTP aktif mi? Hem `smtp_email` hem `smtp_password` dolu olmalı."""
+        return bool(self.smtp_email) and bool(self.smtp_password)
+
     # Slack Bilgileri
     slack_admins: list[str] = Field(..., description="Slack Admin ID listesi")
     slack_startup_channel: Optional[str] = Field(None, description="Slack Startup Channel ID")
