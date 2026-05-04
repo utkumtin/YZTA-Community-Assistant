@@ -39,39 +39,24 @@ class SystemSettings(BaseSettings):
         None, description="Admin e-posta adresi (virgülle ayrılmış birden fazla)"
     )
 
+    @property
+    def smtp_enabled(self) -> bool:
+        """SMTP aktif mi? Hem `smtp_email` hem `smtp_password` dolu olmalı."""
+        return bool(self.smtp_email) and bool(self.smtp_password)
+
     # Slack Bilgileri
-    slack_admins_env: str = Field(
-        ..., alias="SLACK_ADMIN_SLACK_ID", description="Slack Admin ID listesi"
-    )
-    slack_startup_channel: Optional[str] = Field(
-        None, description="Slack Startup Channel ID"
-    )
-    slack_report_channel: Optional[str] = Field(
-        None, description="Slack Report Channel ID"
-    )
-    slack_command_channels_env: str = Field(
-        ...,
-        alias="SLACK_CHALLENGE_CHANNEL",
-        description="Slack Command Channel ID listesi",
-    )
+    slack_admins: list[str] = Field(..., description="Slack Admin ID listesi")
+    slack_startup_channel: Optional[str] = Field(None, description="Slack Startup Channel ID")
+    slack_report_channel: Optional[str] = Field(None, description="Slack Report Channel ID")
+    slack_command_channels: list[str] = Field(..., description="Slack Command Channel ID listesi")
+    slack_admin_channel: str = Field(..., description="Admin bildirim kanal ID'si (C...)")
 
-    @property
-    def slack_admins(self) -> list[str]:
-        if not self.slack_admins_env:
-            return []
-        return [
-            item.strip() for item in self.slack_admins_env.split(",") if item.strip()
-        ]
-
-    @property
-    def slack_command_channels(self) -> list[str]:
-        if not self.slack_command_channels_env:
-            return []
-        return [
-            item.strip()
-            for item in self.slack_command_channels_env.split(",")
-            if item.strip()
-        ]
+    # Event Service Ayarlari
+    event_channel: str = Field(..., description="Serbest Kursu kanal ID'si (C...)")
+    event_reminder_enabled: bool = Field(True, description="Hatirlatma sistemi acik/kapali")
+    event_approval_timeout_hours: int = Field(72, ge=1, description="Admin onay suresi (saat)")
+    event_timezone: str = Field("Europe/Istanbul", description="Etkinlik saatlerinin yorumlanacagi IANA timezone (zoneinfo)")
+    event_morning_reminder_hour: int = Field(8, ge=0, le=23, description="Gun basi hatirlatma saati (yerel TZ)")
 
     # Database Ayarları
     username: str = Field(
